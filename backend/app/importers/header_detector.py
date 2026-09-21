@@ -47,6 +47,10 @@ def _detect_columns(row: list[Any]) -> dict[str, int]:
                 "CODIGO" in normalized_value or "COD" == normalized_value
             ):
                 continue
+            if field_name == "ending_balance" and (
+                "ANTERIOR" in normalized_value or "INICIAL" in normalized_value
+            ):
+                continue
             if any(keyword in normalized_value for keyword in keywords):
                 columns[field_name] = column_index
     return columns

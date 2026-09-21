@@ -1,0 +1,119 @@
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from sqlalchemy.orm import Session
+
+from app.api.dependencies import get_db
+from app.domain.enums import RowStatus
+from app.models import FinancialImport, ImportRow
+from app.schemas.import_api import ImportResponse, ImportRowsResponse, SheetsResponse
+from app.services.excel_import_service import (
+    analyze_import,
+    create_import,
+    get_sheet_analysis,
+)
+
+router = APIRouter(prefix="/api/imports", tags=["imports"])
+
+
+@router.post("", response_model=ImportResponse, status_code=201)
+def upload_import(
+    company_id: int = Form(...),
+    period_id: int = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> FinancialImport:
+    try:
+        return create_import(db, file, company_id, period_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/{import_id}/analyze", response_model=ImportResponse)
+def analyze_uploaded_import(import_id: int, db: Session = Depends(get_db)) -> FinancialImport:
+    import_job = db.get(FinancialImport, import_id)
+    if import_job is None:
+        raise HTTPException(status_code=404, detail="Importación no encontrada")
+    try:
+        return analyze_import(db, import_job)
+    except (FileNotFoundError, ValueError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.get("/{import_id}", response_model=ImportResponse)
+def get_import(import_id: int, db: Session = Depends(get_db)) -> FinancialImport:
+    import_job = db.get(FinancialImport, import_id)
+    if import_job is None:
+        raise HTTPException(status_code=404, detail="Importación no encontrada")
+    return import_job
+
+
+@router.get("/{import_id}/sheets", response_model=SheetsResponse)
+def get_import_sheets(import_id: int, db: Session = Depends(get_db)) -> SheetsResponse:
+    import_job = db.get(FinancialImport, import_id)
+    if import_job is None:
+        raise HTTPException(status_code=404, detail="Importación no encontrada")
+    try:
+        return SheetsResponse(sheets=get_sheet_analysis(import_job))
+    except (FileNotFoundError, ValueError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.get("/{import_id}/rows", response_model=ImportRowsResponse)
+def get_import_rows(import_id: int, db: Session = Depends(get_db)) -> ImportRowsResponse:
+    if db.get(FinancialImport, import_id) is None:
+        raise HTTPException(status_code=404, detail="Importación no encontrada")
+    rows = db.query(ImportRow).filter(ImportRow.source_import_id == import_id).all()
+    return ImportRowsResponse(
+        rows=[
+            {
+                "id": row.id,
+                "source_sheet": row.source_sheet,
+                "source_row": row.source_row,
+                "original_code": row.original_code,
+                "original_name": row.original_name,
+                "normalized_name": row.normalized_name,
+                "matched_account_id": row.matched_account_id,
+                "match_type": row.match_type.value,
+                "confidence": float(row.confidence) if row.confidence is not None else None,
+                "status": row.status.value,
+            }
+            for row in rows
+        ],
+        total=len(rows),
+    )
+
+
+@router.get("/{import_id}/issues", response_model=ImportRowsResponse)
+def get_import_issues(import_id: int, db: Session = Depends(get_db)) -> ImportRowsResponse:
+    if db.get(FinancialImport, import_id) is None:
+        raise HTTPException(status_code=404, detail="Importación no encontrada")
+    rows = (
+        db.query(ImportRow)
+        .filter(
+            ImportRow.source_import_id == import_id,
+            ImportRow.status.in_([
+                RowStatus.NEEDS_REVIEW,
+                RowStatus.UNKNOWN,
+                RowStatus.NEW_ACCOUNT,
+                RowStatus.ERROR,
+            ]),
+        )
+        .all()
+    )
+    return ImportRowsResponse(
+        rows=[
+            {
+                "id": row.id,
+                "source_sheet": row.source_sheet,
+                "source_row": row.source_row,
+                "original_code": row.original_code,
+                "original_name": row.original_name,
+                "normalized_name": row.normalized_name,
+                "matched_account_id": row.matched_account_id,
+                "match_type": row.match_type.value,
+                "confidence": float(row.confidence) if row.confidence is not None else None,
+                "status": row.status.value,
+            }
+            for row in rows
+        ],
+        total=len(rows),
+    )

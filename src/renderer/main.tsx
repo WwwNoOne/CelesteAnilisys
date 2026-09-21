@@ -1,106 +1,61 @@
-import { StrictMode, useRef, useState } from 'react';
+import { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { fileNameFromPath, isSupportedFile } from './file-selection';
-import { menuItems } from './navigation';
+import { demoCompanies, type Company } from './app-state';
+import { ContextHeader } from './components/ContextHeader';
+import { ImportWizard } from './components/imports/ImportWizard';
+import { Sidebar } from './components/Sidebar';
+import { CompaniesPage } from './pages/CompaniesPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { FilesPage } from './pages/FilesPage';
+import { PlaceholderPage } from './pages/PlaceholderPage';
+import { initialPath } from './navigation';
 import './styles.css';
 
 function App() {
-  const [activePath, setActivePath] = useState('/');
-  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [companies, setCompanies] = useState<Company[]>(demoCompanies);
+  const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
+  const [activePath, setActivePath] = useState(initialPath);
+  const [period, setPeriod] = useState('');
+  const [view, setView] = useState('Mensual');
+  const [showImport, setShowImport] = useState(false);
+  const company = companies.find((item) => item.id === activeCompanyId);
 
-  async function chooseFiles() {
-    if (window.electronAPI) {
-      setSelectedFiles(await window.electronAPI.selectFiles());
-      return;
-    }
-    inputRef.current?.click();
+  function enterCompany(companyId: string) {
+    const nextCompany = companies.find((item) => item.id === companyId);
+    setActiveCompanyId(companyId);
+    setPeriod(nextCompany?.periods.at(-1) ?? '');
+    setActivePath('/dashboard');
   }
 
-  function handleBrowserSelection(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? [])
-      .filter((file) => isSupportedFile(file.name))
-      .map((file) => file.name);
-    setSelectedFiles(files);
+  function leaveCompany() {
+    setActiveCompanyId(null);
+    setActivePath(initialPath);
   }
 
-  const isUpload = activePath === '/subida';
+  function addCompany(nextCompany: Company) {
+    setCompanies((current) => [...current, nextCompany]);
+    enterCompany(nextCompany.id);
+  }
 
-  return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">CA</div>
-          <div>
-            <strong>Celeste</strong>
-            <span>Anilisys</span>
-          </div>
-        </div>
+  if (!company) return <CompaniesPage companies={companies} onSelect={enterCompany} onCreate={addCompany} />;
 
-        <nav className="menu" aria-label="Menú principal">
-          <span className="menu-title">MENÚ PRINCIPAL</span>
-          {menuItems.map((item) => (
-            <button
-              className={`menu-item ${activePath === item.path ? 'active' : ''}`}
-              key={item.id}
-              onClick={() => setActivePath(item.path)}
-              type="button"
-            >
-              <span className="menu-icon" aria-hidden="true">{item.icon}</span>
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
+  function renderPage() {
+    if (activePath === '/dashboard') return <DashboardPage company={company} onImport={() => setShowImport(true)} onFiles={() => setActivePath('/files')} />;
+    if (activePath === '/files') return <FilesPage company={company} onImport={() => setShowImport(true)} />;
+    if (activePath === '/statements') return <PlaceholderPage title="Estados financieros" description="Aquí veremos balance general, estado de resultados y flujo de efectivo por período." />;
+    if (activePath === '/analysis') return <PlaceholderPage title="Análisis" description="Aquí estarán los indicadores, ratios y análisis financiero de la empresa." />;
+    if (activePath === '/comparisons') return <PlaceholderPage title="Comparaciones" description="Compara años, meses y períodos cuando los datos estén disponibles." />;
+    return <PlaceholderPage title="Configuración" description="Administra las preferencias y datos generales de esta empresa." />;
+  }
 
-        <div className="sidebar-footer">Análisis financiero</div>
-      </aside>
-
-      <main className="main-content">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">CELeste ANILISYS</p>
-            <h1>{isUpload ? 'SUBIDA' : 'Resumen'}</h1>
-          </div>
-          <div className="status-dot" title="Aplicación local" />
-        </header>
-
-        {isUpload ? (
-          <section className="content-card upload-card">
-            <div className="upload-icon" aria-hidden="true">↑</div>
-            <h2>Subir archivos financieros</h2>
-            <p>Selecciona archivos XLS, XLSX o CSV para comenzar.</p>
-            <input
-              accept=".xls,.xlsx,.csv"
-              className="visually-hidden"
-              multiple
-              onChange={handleBrowserSelection}
-              ref={inputRef}
-              type="file"
-            />
-            <button className="primary-button" onClick={chooseFiles} type="button">
-              Subir archivos
-            </button>
-            {selectedFiles.length > 0 && (
-              <div className="selected-files" aria-live="polite">
-                <strong>Archivos seleccionados</strong>
-                {selectedFiles.map((file) => (
-                  <span key={file}>✓ {fileNameFromPath(file)}</span>
-                ))}
-              </div>
-            )}
-          </section>
-        ) : (
-          <section className="content-card empty-card">
-            <span className="welcome-kicker">PRÓXIMAMENTE</span>
-            <h2>Tu resumen financiero</h2>
-            <p>Selecciona SUBIDA en el menú lateral para cargar tus primeros archivos.</p>
-          </section>
-        )}
-      </main>
-    </div>
-  );
+  return <div className="app-shell">
+    <Sidebar company={company} companies={companies} activePath={activePath} onNavigate={setActivePath} onCompanyChange={enterCompany} onNewCompany={leaveCompany} onAllCompanies={leaveCompany} />
+    <main className="main-content">
+      <ContextHeader company={company} period={period} view={view} onPeriodChange={setPeriod} onViewChange={setView} />
+      {renderPage()}
+    </main>
+    {showImport && <ImportWizard company={company} onClose={() => setShowImport(false)} />}
+  </div>;
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode><App /></StrictMode>,
-);
+createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);

@@ -9,6 +9,7 @@ services:
     volumes:
       - ./backend:/app:Z
       - ./data/examples:/app/data/examples:Z
+      - ./data/imports:/app/data/imports:Z
     depends_on:
       db:
         condition: service_healthy

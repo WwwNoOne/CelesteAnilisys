@@ -20,6 +20,7 @@ class FinancialImport(Base):
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), nullable=False)
     period_id: Mapped[int] = mapped_column(ForeignKey("periods.id"), nullable=False)
     file_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    storage_path: Mapped[str | None] = mapped_column(String(500))
     status: Mapped[ImportStatus] = mapped_column(
         Enum(ImportStatus, native_enum=False), nullable=False, default=ImportStatus.UPLOADED
     )

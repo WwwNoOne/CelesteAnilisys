@@ -3,7 +3,6 @@ from pathlib import Path
 from app.importers.excel_reader import read_workbook
 from app.importers.sheet_classifier import classify_sheet
 
-
 EXAMPLES_DIR = Path("data/examples")
 
 

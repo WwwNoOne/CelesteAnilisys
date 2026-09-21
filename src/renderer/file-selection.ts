@@ -1,4 +1,4 @@
-const supportedExtensions = ['.xls', '.xlsx', '.csv'];
+const supportedExtensions = ['.xlsx', '.xlsm'];
 
 export function isSupportedFile(fileName: string): boolean {
   const normalizedName = fileName.toLowerCase();

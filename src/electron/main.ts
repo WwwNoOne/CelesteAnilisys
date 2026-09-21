@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { join } from 'node:path';
+import { readFile } from 'node:fs/promises';
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -25,10 +26,15 @@ function createWindow() {
 ipcMain.handle('select-files', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile', 'multiSelections'],
-    filters: [{ name: 'Archivos financieros', extensions: ['xls', 'xlsx', 'csv'] }],
+    filters: [{ name: 'Archivos financieros', extensions: ['xlsx', 'xlsm'] }],
   });
   return result.canceled ? [] : result.filePaths;
 });
+
+ipcMain.handle('read-file', async (_event, filePath: string) => ({
+  name: filePath.split(/[\\/]/).pop() ?? 'archivo.xlsx',
+  data: (await readFile(filePath)).toString('base64'),
+}));
 
 app.whenReady().then(() => {
   createWindow();
