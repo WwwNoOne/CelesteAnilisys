@@ -27,3 +27,14 @@ def test_returns_no_header_when_no_financial_columns_are_found():
     assert result.row_index is None
     assert result.columns == {}
     assert result.confidence == 0
+
+
+def test_detects_statement_layout_without_explicit_headers():
+    result = detect_header([
+        ["Empresa", None, None, None],
+        ["INGRESOS DE OPERACIÓN", None, None, 12000],
+        ["INGRESOS POR SERVICIOS", None, 12000, None],
+    ])
+
+    assert result.row_index == -1
+    assert result.columns["account_name"] == 0

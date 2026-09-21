@@ -29,6 +29,17 @@ class SheetsResponse(BaseModel):
     sheets: list[SheetResponse]
 
 
+class PreviewResponse(BaseModel):
+    sheet_name: str
+    rows: list[list[Any]]
+    total_rows: int
+
+
 class ImportRowsResponse(BaseModel):
     rows: list[dict[str, Any]]
     total: int
+
+
+class RowReviewUpdate(BaseModel):
+    action: str
+    account_id: int | None = None

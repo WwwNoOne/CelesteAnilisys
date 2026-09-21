@@ -4,7 +4,7 @@ from uuid import uuid4
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
-from app.domain.enums import ImportStatus, RowStatus
+from app.domain.enums import ImportStatus, MatchType, RowStatus
 from app.importers.excel_reader import read_workbook
 from app.importers.header_detector import detect_header
 from app.importers.sheet_classifier import classify_sheet
@@ -81,12 +81,7 @@ def analyze_import(db: Session, import_job: FinancialImport) -> FinancialImport:
                 )
 
         db.flush()
-        rows = db.query(ImportRow).filter(ImportRow.source_import_id == import_job.id).all()
-        import_job.total_rows = len(rows)
-        import_job.recognized_rows = sum(row.status is RowStatus.MATCHED for row in rows)
-        import_job.review_rows = sum(row.status is RowStatus.NEEDS_REVIEW for row in rows)
-        import_job.new_accounts = sum(row.status is RowStatus.NEW_ACCOUNT for row in rows)
-        import_job.error_rows = sum(row.status is RowStatus.ERROR for row in rows)
+        _refresh_summary(import_job, db)
         import_job.status = ImportStatus.READY_FOR_REVIEW
         db.commit()
     except Exception:
@@ -118,6 +113,70 @@ def get_sheet_analysis(import_job: FinancialImport) -> list[dict]:
             }
         )
     return results
+
+
+def get_sheet_preview(import_job: FinancialImport, sheet_name: str, limit: int = 80) -> list[list]:
+    workbook = read_workbook(Path(import_job.storage_path or ""))
+    sheet = next((item for item in workbook.sheets if item.name == sheet_name), None)
+    if sheet is None:
+        raise ValueError("Hoja no encontrada")
+    return [
+        [value.isoformat() if hasattr(value, "isoformat") else value for value in row[:20]]
+        for row in sheet.rows[:limit]
+    ]
+
+
+def review_row(db: Session, import_job: FinancialImport, row_id: int, action: str, account_id: int | None) -> FinancialImport:
+    from app.models import Account
+
+    row = db.query(ImportRow).filter(ImportRow.id == row_id, ImportRow.source_import_id == import_job.id).first()
+    if row is None:
+        raise ValueError("Fila de importación no encontrada")
+    if action == "ignore":
+        row.status = RowStatus.IGNORED
+        row.match_type = MatchType.NONE
+        row.matched_account_id = None
+    elif action == "match" and account_id is not None:
+        account = db.query(Account).filter(Account.id == account_id, Account.company_id == import_job.company_id).first()
+        if account is None:
+            raise ValueError("La cuenta indicada no pertenece a la empresa")
+        row.matched_account_id = account.id
+        row.match_type = MatchType.CODE_AND_NAME
+        row.confidence = 1
+        row.status = RowStatus.MATCHED
+    else:
+        raise ValueError("Acción de revisión no soportada")
+    _refresh_summary(import_job, db)
+    db.commit()
+    db.refresh(import_job)
+    return import_job
+
+
+def approve_import(db: Session, import_job: FinancialImport) -> FinancialImport:
+    pending = db.query(ImportRow).filter(
+        ImportRow.source_import_id == import_job.id,
+        ImportRow.status.in_([RowStatus.NEEDS_REVIEW, RowStatus.UNKNOWN, RowStatus.NEW_ACCOUNT, RowStatus.ERROR]),
+    ).count()
+    if pending:
+        raise ValueError("La importación todavía tiene filas pendientes de revisión")
+    import_job.status = ImportStatus.APPROVED
+    db.commit()
+    db.refresh(import_job)
+    return import_job
+
+
+def _refresh_summary(import_job: FinancialImport, db: Session) -> None:
+    rows = db.query(ImportRow).filter(ImportRow.source_import_id == import_job.id).all()
+    import_job.total_rows = len(rows)
+    import_job.recognized_rows = sum(row.status is RowStatus.MATCHED for row in rows)
+    import_job.review_rows = sum(row.status in {
+        RowStatus.NEEDS_REVIEW,
+        RowStatus.UNKNOWN,
+        RowStatus.NEW_ACCOUNT,
+        RowStatus.ERROR,
+    } for row in rows)
+    import_job.new_accounts = sum(row.status is RowStatus.NEW_ACCOUNT for row in rows)
+    import_job.error_rows = sum(row.status is RowStatus.ERROR for row in rows)
 
 
 def _catalog_for_company(db: Session, company_id: int) -> AccountCatalog:

@@ -1,3 +1,4 @@
+from numbers import Number
 from typing import Any
 
 from app.normalizers.text_normalizer import normalize_account_name
@@ -24,6 +25,9 @@ def detect_header(rows: list[list[Any]]) -> HeaderDetection:
             best_columns = columns
 
     if len(best_columns) < 2:
+        fallback = _detect_statement_layout(rows)
+        if fallback is not None:
+            return fallback
         return HeaderDetection(row_index=None)
 
     confidence = round(min(1, len(best_columns) / len(_FIELD_KEYWORDS)), 2)
@@ -31,6 +35,27 @@ def detect_header(rows: list[list[Any]]) -> HeaderDetection:
         row_index=best_row_index,
         columns=best_columns,
         confidence=confidence,
+    )
+
+
+def _detect_statement_layout(rows: list[list[Any]]) -> HeaderDetection | None:
+    """Detect report-style sheets whose account labels and amounts have no header row."""
+    candidate_rows = [
+        row for row in rows[:60]
+        if row and isinstance(row[0], str) and row[0].strip()
+        and any(isinstance(value, Number) and not isinstance(value, bool) for value in row[1:])
+    ]
+    if len(candidate_rows) < 2:
+        return None
+
+    numeric_indexes = [
+        index for index, value in enumerate(candidate_rows[0])
+        if isinstance(value, Number) and not isinstance(value, bool)
+    ]
+    return HeaderDetection(
+        row_index=-1,
+        columns={"account_name": 0, "ending_balance": numeric_indexes[0] if numeric_indexes else 1},
+        confidence=0.25,
     )
 
 

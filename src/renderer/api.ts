@@ -6,7 +6,8 @@ type ApiCompany = { id: number; name: string };
 type ApiPeriod = { id: number; label: string; year: number };
 export type ImportResult = { id: number; file_name: string; status: string; total_rows: number; recognized_rows: number; review_rows: number; new_accounts: number; error_rows: number };
 export type ImportSheet = { sheet_name: string; sheet_type: string; confidence: number; header_row: number | null };
-export type ImportIssue = { source_sheet: string; source_row: number; original_code: string | null; original_name: string | null; status: string; match_type: string };
+export type ImportPreview = { sheet_name: string; rows: Array<Array<string | number | null>>; total_rows: number };
+export type ImportIssue = { id: number; source_sheet: string; source_row: number; original_code: string | null; original_name: string | null; status: string; match_type: string };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, init);
@@ -48,6 +49,20 @@ export function getImportSheets(importId: number): Promise<{ sheets: ImportSheet
 
 export function getImportIssues(importId: number): Promise<{ rows: ImportIssue[]; total: number }> {
   return request(`/api/imports/${importId}/issues`);
+}
+
+export function getSheetPreview(importId: number, sheetName: string): Promise<ImportPreview> {
+  return request<ImportPreview>(`/api/imports/${importId}/sheets/${encodeURIComponent(sheetName)}/preview`);
+}
+
+export function reviewImportRow(importId: number, rowId: number, action: 'ignore'): Promise<ImportResult> {
+  return request<ImportResult>(`/api/imports/${importId}/rows/${rowId}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }),
+  });
+}
+
+export function approveImport(importId: number): Promise<ImportResult> {
+  return request<ImportResult>(`/api/imports/${importId}/approve`, { method: 'POST' });
 }
 
 export function fileFromBase64(name: string, base64: string): File {

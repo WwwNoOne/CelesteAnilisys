@@ -1,7 +1,9 @@
 from pathlib import Path
 
 from app.importers.excel_reader import read_workbook
+from app.importers.header_detector import detect_header
 from app.importers.sheet_classifier import classify_sheet
+from app.services.account_extraction_service import extract_account_candidates
 
 EXAMPLES_DIR = Path("data/examples")
 
@@ -29,3 +31,13 @@ def test_real_xlsx_examples_produce_at_least_one_known_sheet_type():
         )
 
     assert any(result.confidence > 0 for result in known_classifications)
+
+
+def test_statement_examples_produce_candidates_without_explicit_headers():
+    workbook = read_workbook(EXAMPLES_DIR / "2025-ER BENGALA.xlsx")
+    candidates = []
+    for sheet in workbook.sheets:
+        candidates.extend(extract_account_candidates(sheet, detect_header(sheet.rows)))
+
+    assert len(candidates) > 0
+    assert any(candidate.name == "INGRESOS POR SERVICIOS" for candidate in candidates)

@@ -4,11 +4,20 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_db
 from app.domain.enums import RowStatus
 from app.models import FinancialImport, ImportRow
-from app.schemas.import_api import ImportResponse, ImportRowsResponse, SheetsResponse
+from app.schemas.import_api import (
+    ImportResponse,
+    ImportRowsResponse,
+    PreviewResponse,
+    RowReviewUpdate,
+    SheetsResponse,
+)
 from app.services.excel_import_service import (
     analyze_import,
+    approve_import,
     create_import,
     get_sheet_analysis,
+    get_sheet_preview,
+    review_row,
 )
 
 router = APIRouter(prefix="/api/imports", tags=["imports"])
@@ -55,6 +64,18 @@ def get_import_sheets(import_id: int, db: Session = Depends(get_db)) -> SheetsRe
         return SheetsResponse(sheets=get_sheet_analysis(import_job))
     except (FileNotFoundError, ValueError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.get("/{import_id}/sheets/{sheet_name}/preview", response_model=PreviewResponse)
+def get_preview(import_id: int, sheet_name: str, db: Session = Depends(get_db)) -> PreviewResponse:
+    import_job = db.get(FinancialImport, import_id)
+    if import_job is None:
+        raise HTTPException(status_code=404, detail="Importación no encontrada")
+    try:
+        rows = get_sheet_preview(import_job, sheet_name)
+    except (FileNotFoundError, ValueError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return PreviewResponse(sheet_name=sheet_name, rows=rows, total_rows=len(rows))
 
 
 @router.get("/{import_id}/rows", response_model=ImportRowsResponse)
@@ -117,3 +138,25 @@ def get_import_issues(import_id: int, db: Session = Depends(get_db)) -> ImportRo
         ],
         total=len(rows),
     )
+
+
+@router.patch("/{import_id}/rows/{row_id}", response_model=ImportResponse)
+def review_import_row(import_id: int, row_id: int, payload: RowReviewUpdate, db: Session = Depends(get_db)) -> FinancialImport:
+    import_job = db.get(FinancialImport, import_id)
+    if import_job is None:
+        raise HTTPException(status_code=404, detail="Importación no encontrada")
+    try:
+        return review_row(db, import_job, row_id, payload.action, payload.account_id)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.post("/{import_id}/approve", response_model=ImportResponse)
+def approve_uploaded_import(import_id: int, db: Session = Depends(get_db)) -> FinancialImport:
+    import_job = db.get(FinancialImport, import_id)
+    if import_job is None:
+        raise HTTPException(status_code=404, detail="Importación no encontrada")
+    try:
+        return approve_import(db, import_job)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
