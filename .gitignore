@@ -1,0 +1,39 @@
+# Entornos virtuales y dependencias locales
+.venv/
+venv/
+backend/.venv/
+node_modules/
+
+# Salidas de compilación y empaquetado
+build/
+dist/
+dist-electron/
+out/
+release/
+
+# Configuración y archivos locales
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+
+# Datos importados, temporales y bases de datos locales
+data/imports/
+data/processed/
+data/temp/
+/*.xls
+/*.xlsx
+/*.csv
+*.db
+*.sqlite
+*.sqlite3
+
+# Cachés y archivos del sistema
+__pycache__/
+backend/.pytest_cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
+Thumbs.db

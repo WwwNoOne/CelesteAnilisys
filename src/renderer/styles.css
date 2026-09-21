@@ -1,0 +1,54 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #183152;
+  background: #f4f7fc;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 960px; min-height: 100vh; }
+button { font: inherit; }
+
+.app-shell { display: flex; min-height: 100vh; background: #f4f7fc; }
+.sidebar {
+  background: #0350a7;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 30px 18px 22px;
+  width: 260px;
+}
+.brand { align-items: center; display: flex; gap: 12px; padding: 0 12px 42px; }
+.brand-mark { align-items: center; background: #47d4e7; border-radius: 12px; color: #0350a7; display: flex; font-size: 14px; font-weight: 800; height: 38px; justify-content: center; width: 38px; }
+.brand strong, .brand span { display: block; line-height: 1.15; }
+.brand strong { font-size: 17px; letter-spacing: .2px; }
+.brand span { color: #b9eaf2; font-size: 12px; margin-top: 3px; }
+.menu { display: flex; flex-direction: column; gap: 8px; }
+.menu-title { color: #9edce9; font-size: 10px; font-weight: 700; letter-spacing: 1.3px; margin: 0 12px 10px; }
+.menu-item { align-items: center; background: transparent; border: 0; border-radius: 12px; color: #d9f3f7; cursor: pointer; display: flex; gap: 14px; padding: 14px 13px; text-align: left; transition: background .2s, color .2s; }
+.menu-item:hover { background: rgba(71, 212, 231, .16); color: #fff; }
+.menu-item.active { background: #2a61ee; box-shadow: 0 8px 18px rgba(0, 23, 79, .18); color: #fff; }
+.menu-icon { align-items: center; border: 1px solid currentColor; border-radius: 7px; display: flex; font-size: 16px; height: 27px; justify-content: center; width: 27px; }
+.menu-item span:last-child { font-size: 12px; font-weight: 700; letter-spacing: .5px; }
+.sidebar-footer { color: #a9e7f0; font-size: 11px; margin-top: auto; padding: 14px 12px 0; }
+.main-content { flex: 1; padding: 40px 58px; }
+.topbar { align-items: flex-start; display: flex; justify-content: space-between; margin: 0 auto 38px; max-width: 1040px; }
+.eyebrow { color: #2a61ee; font-size: 11px; font-weight: 800; letter-spacing: 1.8px; margin: 0 0 10px; }
+h1 { color: #183152; font-size: 32px; letter-spacing: -.7px; margin: 0; }
+.status-dot { background: #0dc7e0; border: 5px solid #d7f5f8; border-radius: 50%; height: 18px; width: 18px; }
+.content-card { background: #fff; border: 1px solid #e7edf6; border-radius: 22px; box-shadow: 0 18px 45px rgba(27, 66, 120, .08); margin: 0 auto; max-width: 1040px; }
+.upload-card { align-items: center; display: flex; flex-direction: column; min-height: 430px; justify-content: center; padding: 56px; text-align: center; }
+.upload-icon { align-items: center; background: #e9fbfd; border-radius: 18px; color: #0dc7e0; display: flex; font-size: 34px; font-weight: 300; height: 76px; justify-content: center; margin-bottom: 22px; width: 76px; }
+h2 { color: #183152; font-size: 22px; margin: 0 0 10px; }
+.content-card p { color: #7890ae; font-size: 14px; margin: 0 0 28px; }
+.primary-button { background: #2a61ee; border: 0; border-radius: 10px; box-shadow: 0 9px 18px rgba(42, 97, 238, .24); color: #fff; cursor: pointer; font-size: 13px; font-weight: 700; padding: 14px 28px; transition: background .2s, transform .2s; }
+.primary-button:hover { background: #0350a7; transform: translateY(-1px); }
+.selected-files { align-items: flex-start; background: #f5fbff; border: 1px solid #d7f5f8; border-radius: 12px; display: flex; flex-direction: column; gap: 7px; margin-top: 26px; padding: 13px 17px; text-align: left; width: min(100%, 480px); }
+.selected-files strong { color: #0350a7; font-size: 12px; margin-bottom: 2px; }
+.selected-files span { color: #4d6a8e; font-size: 12px; }
+.empty-card { padding: 100px 40px; text-align: center; }
+.welcome-kicker { color: #0dc7e0; font-size: 11px; font-weight: 800; letter-spacing: 1.6px; }
+.empty-card h2 { margin-top: 12px; }
+.visually-hidden { height: 1px; opacity: 0; position: absolute; width: 1px; }
