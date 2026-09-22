@@ -546,9 +546,28 @@ def _persist_balances(
     overwrite: bool = False,
 ) -> int:
     saved = 0
-    for r in rows:
+    rows_by_account: dict[int, list[ImportRow]] = {}
+    for row in rows:
+        if row.matched_account_id is not None:
+            rows_by_account.setdefault(row.matched_account_id, []).append(row)
+
+    selected_rows: list[ImportRow] = []
+    for account_rows in rows_by_account.values():
+        ordered = sorted(account_rows, key=lambda row: (row.source_row, row.id))
+        declared_values = {row.ending_balance for row in ordered}
+        if len(declared_values) > 1:
+            raise ValueError("Una cuenta tiene saldos distintos en el mismo período")
+        selected_rows.append(ordered[0])
+
+    for r in selected_rows:
         if r.matched_account_id is None:
             continue
+        is_authoritative = bool(
+            r.matched_account
+            and r.matched_account.canonical_role is not None
+            and r.row_classification
+            in (RowClassification.CUENTA, RowClassification.SUBTOTAL, RowClassification.TOTAL)
+        )
         existing = db.query(AccountBalance).filter(
             AccountBalance.company_id == company_id,
             AccountBalance.period_id == period_id,
@@ -564,6 +583,7 @@ def _persist_balances(
                 existing.source_import_id = source_import_id
                 existing.source_sheet = source_sheet
                 existing.source_row = r.source_row
+                existing.is_authoritative = is_authoritative
                 saved += 1
         else:
             balance = AccountBalance(
@@ -575,6 +595,7 @@ def _persist_balances(
                 debits=r.debits,
                 credits=r.credits,
                 ending_balance=r.ending_balance,
+                is_authoritative=is_authoritative,
                 source_sheet=source_sheet,
                 source_row=r.source_row,
             )

@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.domain.enums import ImportStatus
+from app.domain.enums import CanonicalRole, ImportStatus, RowClassification
 from app.models import AccountBalance, FinancialImport, Period
 
 
@@ -13,6 +14,52 @@ class DuplicateCheckResult:
     duplicate_reason: str | None = None
     existing_import_id: int | None = None
     existing_period_id: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RoleDeclaration:
+    canonical_role: CanonicalRole | None
+    value: Decimal
+    classification: RowClassification
+    source_row: int
+    id: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RoleDeclarationResolution:
+    value: Decimal | None
+    is_authoritative: bool
+    primary_row: int | None
+    duplicate_rows: list[int]
+
+
+def resolve_role_declarations(
+    rows: list[RoleDeclaration],
+    role: CanonicalRole,
+) -> RoleDeclarationResolution:
+    declarations = sorted(
+        (row for row in rows if row.canonical_role == role),
+        key=lambda row: (row.source_row, row.id or 0),
+    )
+    authoritative = [
+        row
+        for row in declarations
+        if row.classification in (RowClassification.TOTAL, RowClassification.SUBTOTAL)
+    ]
+    selected = authoritative or declarations
+    if not selected:
+        return RoleDeclarationResolution(None, False, None, [])
+
+    primary = selected[0]
+    if any(row.value != primary.value for row in selected[1:]):
+        raise ValueError(f"El rol {role.value} tiene saldos distintos")
+
+    return RoleDeclarationResolution(
+        value=primary.value,
+        is_authoritative=bool(authoritative),
+        primary_row=primary.source_row,
+        duplicate_rows=[row.source_row for row in selected[1:]],
+    )
 
 
 def check_statement_duplicate(

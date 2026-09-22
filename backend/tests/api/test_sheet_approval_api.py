@@ -2,7 +2,14 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from app.domain.enums import AccountType, ImportStatus, MatchType, RowClassification, RowStatus
+from app.domain.enums import (
+    AccountType,
+    CanonicalRole,
+    ImportStatus,
+    MatchType,
+    RowClassification,
+    RowStatus,
+)
 from app.models import Account, AccountBalance, FinancialImport, ImportRow, Period
 from tests.conftest import client, seed_test_db, test_engine
 
@@ -208,3 +215,44 @@ def test_import_requires_every_account_sheet_to_be_approved_before_final_approva
     final_approval = client.post("/api/imports/80/approve")
     assert final_approval.status_code == 200
     assert final_approval.json()["status"] == "APPROVED"
+
+
+def test_approve_sheet_marks_explicit_total_as_authoritative():
+    with Session(test_engine) as session:
+        account = session.get(Account, 10)
+        account.canonical_role = CanonicalRole.VENTAS
+        row = session.get(ImportRow, 301)
+        row.row_classification = RowClassification.TOTAL
+        session.commit()
+
+    response = client.post("/api/imports/80/sheets/2025/approve", json={"year": 2025})
+
+    assert response.status_code == 200
+    with Session(test_engine) as session:
+        balance = session.query(AccountBalance).filter(AccountBalance.account_id == 10).one()
+        assert balance.is_authoritative is True
+
+
+def test_approve_sheet_rejects_conflicting_values_for_same_account():
+    with Session(test_engine) as session:
+        session.add(
+            ImportRow(
+                id=305,
+                source_import_id=80,
+                source_sheet="2025",
+                source_row=8,
+                original_name="Ingresos duplicados",
+                normalized_name="INGRESOS DUPLICADOS",
+                matched_account_id=10,
+                match_type=MatchType.CODE_AND_NAME,
+                status=RowStatus.MATCHED,
+                row_classification=RowClassification.TOTAL,
+                ending_balance=13000,
+            )
+        )
+        session.commit()
+
+    response = client.post("/api/imports/80/sheets/2025/approve", json={"year": 2025})
+
+    assert response.status_code == 422
+    assert "saldos distintos" in response.json()["detail"]
