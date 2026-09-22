@@ -23,6 +23,13 @@ class CanonicalRole(StrEnum):
     RESULTADO_EJERCICIO = "RESULTADO_EJERCICIO"
 
 
+class ValidationStatus(StrEnum):
+    VALID = "VALID"
+    MISMATCH = "MISMATCH"
+    MISSING_COMPONENTS = "MISSING_COMPONENTS"
+    DUPLICATE_CONFLICT = "DUPLICATE_CONFLICT"
+
+
 class AccountNature(StrEnum):
     DEUDORA = "DEUDORA"
     ACREEDORA = "ACREEDORA"
