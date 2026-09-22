@@ -1,4 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { deleteImport } from '../../src/renderer/api';
+import { canDeleteImport } from '../../src/renderer/files-page-state';
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('files page state and history', () => {
   it('formats status labels and colors accurately', () => {
@@ -27,5 +33,19 @@ describe('files page state and history', () => {
 
     expect(totalUnknown).toBe(7);
     expect(totalPendingReview).toBe(15);
+  });
+
+  it('allows deletion only while an import is pending review', () => {
+    expect(canDeleteImport('READY_FOR_REVIEW')).toBe(true);
+    expect(canDeleteImport('APPROVED')).toBe(false);
+    expect(canDeleteImport('UPLOADED')).toBe(false);
+    expect(canDeleteImport('ANALYZING')).toBe(false);
+    expect(canDeleteImport('FAILED')).toBe(false);
+  });
+
+  it('accepts a successful delete response without a JSON body', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+
+    await expect(deleteImport(62)).resolves.toBeUndefined();
   });
 });

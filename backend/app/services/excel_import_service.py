@@ -27,6 +27,24 @@ from app.services.statement_duplicate_service import check_statement_duplicate
 IMPORT_STORAGE_DIR = Path("data/imports")
 
 
+def delete_pending_import(db: Session, import_job: FinancialImport) -> None:
+    if import_job.status != ImportStatus.READY_FOR_REVIEW:
+        raise ValueError("Solo se pueden eliminar importaciones pendientes de revisión")
+
+    storage_path = Path(import_job.storage_path) if import_job.storage_path else None
+    db.query(AccountBalance).filter(
+        AccountBalance.source_import_id == import_job.id
+    ).delete(synchronize_session=False)
+    db.query(ImportRow).filter(
+        ImportRow.source_import_id == import_job.id
+    ).delete(synchronize_session=False)
+    db.delete(import_job)
+    db.commit()
+
+    if storage_path is not None:
+        storage_path.unlink(missing_ok=True)
+
+
 def create_import(
     db: Session,
     file: UploadFile,

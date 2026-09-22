@@ -199,6 +199,12 @@ button { cursor: pointer; }
 .cell-unknown { color: #b45309; font-weight: 700; }
 .cell-warning { color: #c2410c; font-weight: 700; }
 .primary-button.small, .secondary-button.small { padding: 6px 12px; font-size: 11px; border-radius: 7px; }
+.history-actions { align-items: center; display: flex; gap: 8px; }
+.danger-button { background: #fff; border: 1px solid #f4a7ad; border-radius: 10px; color: #b42332; font-weight: 750; padding: 10px 16px; }
+.danger-button:hover:not(:disabled) { background: #fff1f2; border-color: #e76a76; }
+.danger-button:disabled { cursor: wait; opacity: .55; }
+.danger-button.small { border-radius: 7px; font-size: 11px; padding: 6px 12px; }
+.files-error { background: #fff1f2; border: 1px solid #fecdd3; border-radius: 10px; color: #be123c; margin: 0 0 16px; padding: 11px 14px; }
 
 /* Financial comparisons */
 .comparison-page { margin: 0 auto; max-width: 1080px; }

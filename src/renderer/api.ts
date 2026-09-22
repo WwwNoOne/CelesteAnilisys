@@ -69,6 +69,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const body = await response.json().catch(() => ({}));
     throw new Error(body.detail ?? `Error del servidor (${response.status})`);
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -242,6 +243,10 @@ export function updateImportPeriod(
 
 export function listCompanyImports(companyId: number): Promise<ImportResult[]> {
   return request<ImportResult[]>(`/api/companies/${companyId}/imports`);
+}
+
+export function deleteImport(importId: number): Promise<void> {
+  return request<void>(`/api/imports/${importId}`, { method: 'DELETE' });
 }
 
 export type ComparisonStatementType = 'BALANCE_GENERAL' | 'ESTADO_RESULTADOS';

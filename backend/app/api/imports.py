@@ -19,12 +19,24 @@ from app.services.excel_import_service import (
     approve_import,
     approve_sheet,
     create_import,
+    delete_pending_import,
     get_sheet_analysis,
     get_sheet_preview,
     review_row,
 )
 
 router = APIRouter(prefix="/api/imports", tags=["imports"])
+
+
+@router.delete("/{import_id}", status_code=204)
+def delete_import(import_id: int, db: Session = Depends(get_db)) -> None:
+    import_job = db.get(FinancialImport, import_id)
+    if import_job is None:
+        raise HTTPException(status_code=404, detail="Importación no encontrada")
+    try:
+        delete_pending_import(db, import_job)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 @router.post("", response_model=ImportResponse, status_code=201)

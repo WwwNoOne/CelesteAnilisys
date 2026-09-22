@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
-from app.domain.enums import ImportStatus
-from app.models import Company, FinancialImport
+from app.domain.enums import ImportStatus, MatchType, RowStatus
+from app.models import Company, FinancialImport, ImportRow
 from tests.conftest import client, seed_test_db, test_engine
 
 
@@ -67,3 +67,39 @@ def test_list_company_imports_filters_by_company_and_returns_summary():
 def test_list_company_imports_returns_404_for_unknown_company():
     res = client.get("/api/companies/999/imports")
     assert res.status_code == 404
+
+
+def test_delete_pending_import_removes_rows_and_stored_file(tmp_path):
+    stored_file = tmp_path / "pending.xlsx"
+    stored_file.write_bytes(b"test workbook")
+    with Session(test_engine) as session:
+        pending = session.get(FinancialImport, 62)
+        pending.storage_path = str(stored_file)
+        session.add(
+            ImportRow(
+                id=620,
+                source_import_id=62,
+                source_sheet="Sheet1",
+                source_row=1,
+                match_type=MatchType.NONE,
+                status=RowStatus.UNKNOWN,
+            )
+        )
+        session.commit()
+
+    res = client.delete("/api/imports/62")
+
+    assert res.status_code == 204
+    assert not stored_file.exists()
+    with Session(test_engine) as session:
+        assert session.get(FinancialImport, 62) is None
+        assert session.get(ImportRow, 620) is None
+
+
+def test_delete_import_rejects_approved_financial_statement():
+    res = client.delete("/api/imports/61")
+
+    assert res.status_code == 422
+    assert res.json()["detail"] == "Solo se pueden eliminar importaciones pendientes de revisión"
+    with Session(test_engine) as session:
+        assert session.get(FinancialImport, 61) is not None

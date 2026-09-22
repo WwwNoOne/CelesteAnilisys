@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ensureCompany, listCompanyImports, type ImportResult } from '../api';
+import { deleteImport, ensureCompany, listCompanyImports, type ImportResult } from '../api';
 import type { Company } from '../app-state';
+import { canDeleteImport } from '../files-page-state';
 
 type FilesPageProps = {
   company: Company;
@@ -19,6 +20,8 @@ const STATUS_CONFIG: Record<string, { label: string; badgeClass: string }> = {
 export function FilesPage({ company, onImport, onOpenReview }: FilesPageProps) {
   const [imports, setImports] = useState<ImportResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -36,6 +39,22 @@ export function FilesPage({ company, onImport, onOpenReview }: FilesPageProps) {
     void load();
   }, [company.id]);
 
+  async function removeImport(item: ImportResult) {
+    if (!canDeleteImport(item.status)) return;
+    if (!window.confirm(`¿Eliminar ${item.file_name}? Esta acción no se puede deshacer.`)) return;
+
+    setDeletingId(item.id);
+    setError(null);
+    try {
+      await deleteImport(item.id);
+      setImports((current) => current.filter((candidate) => candidate.id !== item.id));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'No se pudo eliminar la importación.');
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <section className="page-stack">
       <div className="section-heading">
@@ -48,6 +67,8 @@ export function FilesPage({ company, onImport, onOpenReview }: FilesPageProps) {
           + Importar datos
         </button>
       </div>
+
+      {error && <p className="files-error" role="alert">{error}</p>}
 
       {loading && (
         <section className="content-card files-empty">
@@ -107,17 +128,29 @@ export function FilesPage({ company, onImport, onOpenReview }: FilesPageProps) {
                     <td className="cell-unknown">{item.unknown_rows}</td>
                     <td className="cell-warning">{item.review_rows}</td>
                     <td>
-                      {onOpenReview && (
-                        <button
-                          type="button"
-                          className={
-                            item.status === 'APPROVED' ? 'secondary-button small' : 'primary-button small'
-                          }
-                          onClick={() => onOpenReview(item.id)}
-                        >
-                          {item.status === 'APPROVED' ? 'Ver libro' : 'Revisar libro'}
-                        </button>
-                      )}
+                      <div className="history-actions">
+                        {onOpenReview && (
+                          <button
+                            type="button"
+                            className={
+                              item.status === 'APPROVED' ? 'secondary-button small' : 'primary-button small'
+                            }
+                            onClick={() => onOpenReview(item.id)}
+                          >
+                            {item.status === 'APPROVED' ? 'Ver libro' : 'Revisar libro'}
+                          </button>
+                        )}
+                        {canDeleteImport(item.status) && (
+                          <button
+                            type="button"
+                            className="danger-button small"
+                            disabled={deletingId === item.id}
+                            onClick={() => void removeImport(item)}
+                          >
+                            {deletingId === item.id ? 'Eliminando…' : 'Eliminar'}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
