@@ -3,6 +3,32 @@ import type {
   ComparisonStatement,
 } from './api';
 
+export type ComparisonAvailability = {
+  canCompare: boolean;
+  reason: 'INSUFFICIENT' | null;
+};
+
+export function getComparisonAvailability(
+  statements: ComparisonStatement[],
+): ComparisonAvailability {
+  return statements.length >= 2
+    ? { canCompare: true, reason: null }
+    : { canCompare: false, reason: 'INSUFFICIENT' };
+}
+
+export function createRequestTracker() {
+  let current = 0;
+  return {
+    begin(): number {
+      current += 1;
+      return current;
+    },
+    isCurrent(requestId: number): boolean {
+      return requestId === current;
+    },
+  };
+}
+
 export function isChronologicallyBefore(
   base: ComparisonStatement,
   comparison: ComparisonStatement,
