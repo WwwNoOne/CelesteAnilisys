@@ -23,6 +23,16 @@ El proyecto implementa el **Módulo 1: Ingesta y normalización de estados finan
 
 Solo aparecen estados aprobados con saldos guardados. Los períodos de distinta duración muestran una advertencia y no se ajustan automáticamente.
 
+### Validación contable antes de aprobar
+
+1. Revisa texto original, cuenta de catálogo, rol y saldo.
+2. Declara con saldo 0 cualquier componente obligatorio sin movimiento.
+3. Guarda todas las hojas financieras.
+4. Pulsa **Validar y aprobar**.
+5. Corrige las filas rojas hasta que las ecuaciones cuadren.
+
+Los nombres del Excel son evidencia; las ecuaciones usan roles confirmados del catálogo. Los totales explícitos son autoritativos y no se suman de nuevo junto con sus cuentas de detalle.
+
 ## Estructura
 
 ```text
