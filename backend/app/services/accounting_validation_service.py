@@ -143,9 +143,10 @@ def validate_import_accounting(
     income_roles = set(CanonicalRole) - balance_roles
     for group_rows in groups.values():
         components: dict[CanonicalRole, AccountingComponent] = {}
+        sources_by_role: dict[CanonicalRole, list[AccountingSource]] = {}
         for balance, account in group_rows:
             role = account.canonical_role
-            if role is None or balance.ending_balance is None or role in components:
+            if role is None or balance.ending_balance is None:
                 continue
             import_row = (
                 db.query(ImportRow)
@@ -167,11 +168,31 @@ def validate_import_accounting(
                 source_row=balance.source_row,
                 row_id=import_row.id if import_row else None,
             )
-            components[role] = AccountingComponent(
-                value=balance.ending_balance,
-                row_ids=[import_row.id] if import_row else [],
-                sources=[source],
-                explicit=balance.is_authoritative,
+            sources_by_role.setdefault(role, []).append(source)
+            if role not in components:
+                components[role] = AccountingComponent(
+                    value=balance.ending_balance,
+                    row_ids=[import_row.id] if import_row else [],
+                    sources=[source],
+                    explicit=balance.is_authoritative,
+                )
+
+        for role, role_sources in sources_by_role.items():
+            values = {source.value for source in role_sources}
+            if len(values) <= 1:
+                continue
+            row_ids = sorted(source.row_id for source in role_sources if source.row_id is not None)
+            rules.append(
+                AccountingRuleResult(
+                    rule_id=f"duplicate_{role.value.lower()}",
+                    label=f"Declaraciones duplicadas de {role.value}",
+                    status=ValidationStatus.DUPLICATE_CONFLICT,
+                    left_value=role_sources[0].value,
+                    right_value=role_sources[1].value,
+                    difference=role_sources[0].value - role_sources[1].value,
+                    row_ids=row_ids,
+                    sources=role_sources,
+                )
             )
         present_roles = set(components)
         if present_roles & balance_roles:

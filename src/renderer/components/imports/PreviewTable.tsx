@@ -69,7 +69,7 @@ export function PreviewTable({
 
             return (
               <tr
-                key={sourceRowNum}
+                key={`${sourceRowNum}-${detail?.import_row_id ?? rowIndex}`}
                 className={`excel-preview-row ${isSelected ? 'row-selected' : ''} ${
                   detail?.import_row_id != null ? 'clickable-row' : ''
                 } ${isInvalid ? 'financial-row-invalid' : ''}`}

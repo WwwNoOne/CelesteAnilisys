@@ -52,7 +52,7 @@ def detect_candidate_classification(normalized_name: str, has_amount: bool) -> R
     ):
         return RowClassification.SUBTOTAL
 
-    if normalized_name in (
+    if not has_amount and normalized_name in (
         "ACTIVO", "ACTIVOS", "PASIVO", "PASIVOS", "PATRIMONIO",
         "INGRESOS DE OPERACION", "COSTO DE VENTAS", "GASTOS DE OPERACION",
         "CONCILIACION DE IMPUESTOS", "MENOS", "MAS",

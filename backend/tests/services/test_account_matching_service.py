@@ -1,5 +1,5 @@
 from app.domain.entities import Account, AccountAlias
-from app.domain.enums import AccountType, MatchType, RowStatus
+from app.domain.enums import AccountType, MatchType, RowClassification, RowStatus
 from app.schemas.import_analysis import HeaderDetection, SheetSnapshot
 from app.services.account_extraction_service import extract_account_candidates
 from app.services.account_matching_service import AccountCatalog, match_account
@@ -163,6 +163,7 @@ def test_report_layout_emits_two_lateral_candidates():
         ("Activo", Decimal("50000.00")),
         ("Pasivo", Decimal("30000.00")),
     ]
+    assert all(candidate.row_classification == RowClassification.CUENTA for candidate in result)
 
 
 def test_text_context_and_empty_rows_emit_no_candidates():

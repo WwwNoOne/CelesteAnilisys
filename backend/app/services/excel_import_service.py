@@ -203,7 +203,7 @@ def get_sheet_preview(
         raise ValueError("Hoja no encontrada")
 
     temporal_info = detect_sheet_temporal_info(sheet)
-    import_rows_by_line: dict[int, ImportRow] = {}
+    import_rows_by_line: dict[int, list[ImportRow]] = {}
     if db is not None and import_job.id:
         rows = (
             db.query(ImportRow)
@@ -211,10 +211,11 @@ def get_sheet_preview(
                 ImportRow.source_import_id == import_job.id,
                 ImportRow.source_sheet == sheet_name,
             )
+            .order_by(ImportRow.source_row, ImportRow.id)
             .all()
         )
         for r in rows:
-            import_rows_by_line[r.source_row] = r
+            import_rows_by_line.setdefault(r.source_row, []).append(r)
 
     max_cols = max((len(r) for r in sheet.rows[:limit]), default=0)
     col_count = min(max(max_cols, 1), 26)
@@ -224,32 +225,39 @@ def get_sheet_preview(
     row_details = []
     for line_num, r in enumerate(sheet.rows[:limit], start=1):
         formatted_row = [value.isoformat() if hasattr(value, "isoformat") else value for value in r[:col_count]]
-        raw_rows.append(formatted_row)
-        matched_row = import_rows_by_line.get(line_num)
-        row_details.append(
-            SheetPreviewRow(
-                source_row=line_num,
-                cells=formatted_row,
-                import_row_id=matched_row.id if matched_row else None,
-                status=matched_row.status.value if matched_row else None,
-                account_code=matched_row.original_code if matched_row else None,
-                account_name=matched_row.original_name if matched_row else None,
-                row_classification=matched_row.row_classification.value if matched_row else "CUENTA",
-                canonical_role=(
-                    matched_row.matched_account.canonical_role
-                    if matched_row and matched_row.matched_account
-                    else None
-                ),
-                ending_balance=matched_row.ending_balance if matched_row else None,
+        matched_rows = import_rows_by_line.get(line_num) or [None]
+        for matched_row in matched_rows:
+            raw_rows.append(formatted_row)
+            row_details.append(
+                SheetPreviewRow(
+                    source_row=line_num,
+                    cells=formatted_row,
+                    import_row_id=matched_row.id if matched_row else None,
+                    status=matched_row.status.value if matched_row else None,
+                    account_code=matched_row.original_code if matched_row else None,
+                    account_name=matched_row.original_name if matched_row else None,
+                    row_classification=(
+                        matched_row.row_classification.value if matched_row else "CUENTA"
+                    ),
+                    canonical_role=(
+                        matched_row.matched_account.canonical_role
+                        if matched_row and matched_row.matched_account
+                        else None
+                    ),
+                    ending_balance=matched_row.ending_balance if matched_row else None,
+                )
             )
-        )
+
+    expanded_preview_truncated = len(raw_rows) > limit
+    raw_rows = raw_rows[:limit]
+    row_details = row_details[:limit]
 
     return PreviewResponse(
         sheet_name=sheet_name,
         columns=columns,
         rows=raw_rows,
         total_rows=len(sheet.rows),
-        truncated=len(sheet.rows) > limit,
+        truncated=len(sheet.rows) > limit or expanded_preview_truncated,
         row_details=row_details,
         as_of_date=temporal_info.get("as_of_date"),
         period_start=temporal_info.get("period_start"),

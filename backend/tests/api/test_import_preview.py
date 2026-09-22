@@ -1,6 +1,9 @@
 from pathlib import Path
 
-from tests.conftest import client, seed_test_db
+from sqlalchemy.orm import Session
+
+from app.models import ImportRow
+from tests.conftest import client, seed_test_db, test_engine
 
 EXAMPLE_FILE = Path("data/examples/2025-BG BENGALA.xlsx")
 
@@ -66,3 +69,43 @@ def test_preview_returns_422_for_invalid_sheet():
 
     res = client.get(f"/api/imports/{import_id}/sheets/NON_EXISTENT/preview")
     assert res.status_code == 422
+
+
+def test_preview_preserves_each_lateral_candidate_from_the_same_excel_row():
+    response = client.post(
+        "/api/imports",
+        data={"company_id": "1", "period_id": "1"},
+        files={
+            "file": (
+                EXAMPLE_FILE.name,
+                EXAMPLE_FILE.read_bytes(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+    import_id = response.json()["id"]
+    client.post(f"/api/imports/{import_id}/analyze")
+
+    with Session(test_engine) as session:
+        imported_rows = (
+            session.query(ImportRow)
+            .filter(
+                ImportRow.source_import_id == import_id,
+                ImportRow.source_sheet == "2025",
+            )
+            .all()
+        )
+    counts: dict[int, int] = {}
+    for row in imported_rows:
+        counts[row.source_row] = counts.get(row.source_row, 0) + 1
+    duplicated_source_row = next(row for row, count in counts.items() if count > 1)
+
+    preview = client.get(f"/api/imports/{import_id}/sheets/2025/preview?limit=200").json()
+    visible = [
+        detail
+        for detail in preview["row_details"]
+        if detail["source_row"] == duplicated_source_row and detail["import_row_id"] is not None
+    ]
+
+    assert len(visible) == counts[duplicated_source_row]
+    assert len({detail["import_row_id"] for detail in visible}) == counts[duplicated_source_row]

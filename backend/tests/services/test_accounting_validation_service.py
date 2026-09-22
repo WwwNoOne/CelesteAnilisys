@@ -135,3 +135,45 @@ def test_import_validation_does_not_mix_companies_or_imports():
         602,
         603,
     }
+
+
+def test_conflicting_declarations_for_one_role_block_validation():
+    seed_test_db()
+    with Session(test_engine) as session:
+        job = FinancialImport(id=62, company_id=1, period_id=1, file_name="conflict.xlsx")
+        session.add(job)
+        values = [
+            (621, CanonicalRole.ACTIVO, "100"),
+            (622, CanonicalRole.ACTIVO, "110"),
+            (623, CanonicalRole.PASIVO, "40"),
+            (624, CanonicalRole.PATRIMONIO, "60"),
+        ]
+        for source_row, (account_id, role, value) in enumerate(values, start=1):
+            account = Account(
+                id=account_id,
+                company_id=1,
+                code=str(account_id),
+                name=f"{role.value} {account_id}",
+                canonical_role=role,
+            )
+            session.add(account)
+            session.flush()
+            session.add(
+                AccountBalance(
+                    company_id=1,
+                    period_id=1,
+                    account_id=account_id,
+                    source_import_id=62,
+                    ending_balance=Decimal(value),
+                    source_sheet="Balance",
+                    source_row=source_row,
+                    is_authoritative=True,
+                )
+            )
+        session.commit()
+
+        validation = validate_import_accounting(session, 62)
+
+    assert validation.valid is False
+    assert validation.rules[0].status == ValidationStatus.DUPLICATE_CONFLICT
+    assert {source.account_id for source in validation.rules[0].sources} == {621, 622}
