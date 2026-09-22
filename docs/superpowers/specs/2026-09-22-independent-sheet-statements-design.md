@@ -40,7 +40,7 @@ Representa el archivo cargado. Conserva empresa, nombre, ruta, fecha de carga y 
 - `READY_FOR_REVIEW`: al menos una hoja válida pendiente;
 - `APPROVED`: todas las hojas válidas están aprobadas y las restantes descartadas;
 - `FAILED`: no se pudo leer o analizar el archivo;
-- `DISCARDED` o equivalente: no se encontró ninguna hoja válida.
+- `DISCARDED`: no se encontró ninguna hoja válida.
 
 Los campos temporales globales existentes se conservarán durante la migración por compatibilidad, pero el flujo nuevo no los usará como autoridad.
 
