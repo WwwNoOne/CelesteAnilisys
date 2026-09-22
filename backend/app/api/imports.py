@@ -133,7 +133,7 @@ def get_import_sheets(import_id: int, db: Session = Depends(get_db)) -> SheetsRe
     if import_job is None:
         raise HTTPException(status_code=404, detail="Importación no encontrada")
     try:
-        return SheetsResponse(sheets=get_sheet_analysis(import_job))
+        return SheetsResponse(sheets=get_sheet_analysis(db, import_job))
     except (FileNotFoundError, ValueError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 

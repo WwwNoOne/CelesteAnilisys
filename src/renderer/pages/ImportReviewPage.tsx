@@ -22,11 +22,11 @@ import {
 import { AccountingValidationPanel } from '../components/imports/AccountingValidationPanel';
 import { PreviewTable } from '../components/imports/PreviewTable';
 import { RowReviewPanel } from '../components/imports/RowReviewPanel';
-import { SheetList } from '../components/imports/SheetList';
 
 type ImportReviewPageProps = {
   importId: number;
   company: Company;
+  sheetName: string;
   onBack: () => void;
   onApproved: () => void;
 };
@@ -34,12 +34,13 @@ type ImportReviewPageProps = {
 export function ImportReviewPage({
   importId,
   company,
+  sheetName,
   onBack,
   onApproved,
 }: ImportReviewPageProps) {
   const [importJob, setImportJob] = useState<ImportResult | null>(null);
   const [sheets, setSheets] = useState<ImportSheet[]>([]);
-  const [selectedSheet, setSelectedSheet] = useState<string>('');
+  const selectedSheet = sheetName;
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [selectedRow, setSelectedRow] = useState<SheetPreviewRow | null>(null);
   const [periodInput, setPeriodInput] = useState<string>('');
@@ -51,7 +52,6 @@ export function ImportReviewPage({
   const [validatingPeriod, setValidatingPeriod] = useState(false);
   const [approving, setApproving] = useState(false);
   const [approvingSheet, setApprovingSheet] = useState(false);
-  const [approvedSheets, setApprovedSheets] = useState<string[]>([]);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -82,10 +82,8 @@ export function ImportReviewPage({
         setPeriodInput(previewInitial.detected_period_label ?? '');
         setSheets(sheetsData.sheets);
 
-        const firstSheet = sheetsData.sheets[0]?.sheet_name;
-        if (firstSheet) {
-          setSelectedSheet(firstSheet);
-          const previewData = await getSheetPreview(importId, firstSheet);
+        if (sheetName) {
+          const previewData = await getSheetPreview(importId, sheetName);
           setPreview(previewData);
           if (previewData.as_of_date) setAsOfDate(previewData.as_of_date);
           if (previewData.period_start) setPeriodStart(previewData.period_start);
@@ -101,29 +99,6 @@ export function ImportReviewPage({
     }
     void init();
   }, [importId]);
-
-  async function handleSelectSheet(sheetName: string) {
-    const requestId = validationTracker.begin();
-    setSelectedSheet(sheetName);
-    setSelectedRow(null);
-    setAccountingValidation(null);
-    try {
-      const [data, validation] = await Promise.all([
-        getSheetPreview(importId, sheetName),
-        getAccountingValidation(importId),
-      ]);
-      setPreview(data);
-      if (validationTracker.isCurrent(requestId)) {
-        setAccountingValidation(validation);
-      }
-      if (data.as_of_date) setAsOfDate(data.as_of_date);
-      if (data.period_start) setPeriodStart(data.period_start);
-      if (data.period_end) setPeriodEnd(data.period_end);
-      if (data.timeframe) setTimeframe(data.timeframe);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Error al cargar la hoja');
-    }
-  }
 
   async function handleValidatePeriod() {
     if (!importJob) return;
@@ -250,9 +225,11 @@ export function ImportReviewPage({
 
       setDuplicateWarning(null);
       if (res.success) {
-        setApprovedSheets((prev) => Array.from(new Set([...prev, selectedSheet])));
         setSuccessMessage(`✓ Se guardaron ${res.balances_saved} saldos contables de la hoja ${selectedSheet} en la base de datos.`);
-        setTimeout(() => setSuccessMessage(''), 5000);
+        setTimeout(() => {
+          setSuccessMessage('');
+          onApproved();
+        }, 1200);
         await refreshAccountingValidation();
       }
     } catch (caught) {
@@ -303,7 +280,7 @@ export function ImportReviewPage({
       <header className="review-topbar">
         <div className="topbar-left">
           <button type="button" className="secondary-button icon-back" onClick={onBack}>
-            ← Volver a Archivos
+            ← Volver a selección
           </button>
           <div className="topbar-title-block">
             <span className="eyebrow">{company.name}</span>
@@ -429,15 +406,8 @@ export function ImportReviewPage({
 
       <AccountingValidationPanel validation={accountingValidation} />
 
-      {/* Main 3-column workspace */}
+      {/* Main workspace focused on a single sheet */}
       <main className="review-main-columns">
-        <SheetList
-          sheets={sheets}
-          selectedSheet={selectedSheet}
-          approvedSheets={approvedSheets}
-          onSelectSheet={(name) => void handleSelectSheet(name)}
-        />
-
         <section className="preview-center-area">
           <div className="preview-area-header">
             <div className="preview-title-wrap">
@@ -452,18 +422,15 @@ export function ImportReviewPage({
               {(() => {
                 const pendingCount =
                   preview?.row_details.filter(isPendingPreviewRow).length ?? 0;
-                const isApproved = approvedSheets.includes(selectedSheet);
                 return (
                   <button
                     type="button"
-                    className={isApproved ? 'secondary-button small' : 'primary-button small'}
+                    className="primary-button small"
                     disabled={approvingSheet || pendingCount > 0}
                     onClick={() => void handleApproveSheet(false)}
                   >
                     {approvingSheet
                       ? 'Guardando saldos…'
-                      : isApproved
-                      ? '✓ Hoja guardada (Actualizar saldos)'
                       : pendingCount > 0
                       ? `Resolver ${pendingCount} fila(s) para aprobar`
                       : 'Aprobar esta hoja y guardar saldos'}

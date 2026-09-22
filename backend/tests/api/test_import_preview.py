@@ -100,12 +100,15 @@ def test_preview_preserves_each_lateral_candidate_from_the_same_excel_row():
         counts[row.source_row] = counts.get(row.source_row, 0) + 1
     duplicated_source_row = next(row for row, count in counts.items() if count > 1)
 
+    # The extraction still keeps both lateral candidates in import_rows...
+    assert counts[duplicated_source_row] > 1
+
+    # ...but the preview renders each physical Excel row exactly once.
     preview = client.get(f"/api/imports/{import_id}/sheets/2025/preview?limit=200").json()
     visible = [
         detail
         for detail in preview["row_details"]
-        if detail["source_row"] == duplicated_source_row and detail["import_row_id"] is not None
+        if detail["source_row"] == duplicated_source_row
     ]
 
-    assert len(visible) == counts[duplicated_source_row]
-    assert len({detail["import_row_id"] for detail in visible}) == counts[duplicated_source_row]
+    assert len(visible) == 1

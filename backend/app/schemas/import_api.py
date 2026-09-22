@@ -49,13 +49,20 @@ class SheetResponse(BaseModel):
     normalized_name: str
     sheet_type: str
     confidence: float
-    header_row: int | None
-    header_columns: dict[str, int]
+    header_row: int | None = None
+    header_columns: dict[str, int] = {}
+    status: str = "PENDING_REVIEW"
+    discard_reason: str | None = None
     as_of_date: date | None = None
     period_start: date | None = None
     period_end: date | None = None
     timeframe: str | None = None
     date_label: str | None = None
+    total_rows: int = 0
+    recognized_rows: int = 0
+    review_rows: int = 0
+    unknown_rows: int = 0
+    error_rows: int = 0
 
 
 class SheetsResponse(BaseModel):
@@ -72,6 +79,8 @@ class SheetPreviewRow(BaseModel):
     row_classification: str = "CUENTA"
     canonical_role: CanonicalRole | None = None
     ending_balance: Decimal | None = None
+    source_text_column: int | None = None
+    source_amount_column: int | None = None
 
 
 class PreviewResponse(BaseModel):

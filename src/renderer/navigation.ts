@@ -17,12 +17,29 @@ export const menuItems: MenuItem[] = [
 ];
 
 export function isReviewPath(path: string): boolean {
-  return /^\/imports\/\d+\/review$/.test(path);
+  return /^\/imports\/\d+\/review(?:\/[^/]+)?$/.test(path);
+}
+
+export function isSelectSheetPath(path: string): boolean {
+  return /^\/imports\/\d+\/select-sheet$/.test(path);
 }
 
 export function parseImportIdFromPath(path: string): number | null {
-  const match = path.match(/^\/imports\/(\d+)\/review$/);
+  const match = path.match(/^\/imports\/(\d+)(?:\/select-sheet|\/review(?:\/[^/]+)?)$/);
   return match ? Number.parseInt(match[1], 10) : null;
+}
+
+export function parseSheetNameFromReviewPath(path: string): string | null {
+  const match = path.match(/^\/imports\/\d+\/review\/(.+)$/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+export function selectSheetPath(importId: number): string {
+  return `/imports/${importId}/select-sheet`;
+}
+
+export function reviewSheetPath(importId: number, sheetName: string): string {
+  return `/imports/${importId}/review/${encodeURIComponent(sheetName)}`;
 }
 
 export function showsGlobalContextControls(path: string): boolean {

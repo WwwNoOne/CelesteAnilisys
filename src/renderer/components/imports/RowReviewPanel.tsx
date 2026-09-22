@@ -70,6 +70,11 @@ function defaultStatementForSheet(sheetType?: string): string {
   return 'ALL';
 }
 
+function columnLetter(index: number | null): string {
+  if (index === null || index === undefined) return '—';
+  return String.fromCharCode(65 + index);
+}
+
 export function RowReviewPanel({
   companyId,
   sheetType,
@@ -245,6 +250,26 @@ export function RowReviewPanel({
           <div className="info-item">
             <span className="info-label">Texto original</span>
             <strong>{selectedRow.account_name || '— Sin nombre —'}</strong>
+          </div>
+          <div className="info-item">
+            <span className="info-label">Columna de texto</span>
+            <strong>
+              {columnLetter(selectedRow.source_text_column)}
+              {selectedRow.source_text_column !== null &&
+                selectedRow.source_text_column !== undefined && (
+                  <span className="cell-coordinate-tag">texto</span>
+                )}
+            </strong>
+          </div>
+          <div className="info-item">
+            <span className="info-label">Columna de importe</span>
+            <strong>
+              {columnLetter(selectedRow.source_amount_column)}
+              {selectedRow.source_amount_column !== null &&
+                selectedRow.source_amount_column !== undefined && (
+                  <span className="cell-coordinate-tag amount">importe</span>
+                )}
+            </strong>
           </div>
         </div>
 

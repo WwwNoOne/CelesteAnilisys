@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
@@ -15,8 +15,6 @@ from app.domain.enums import (
     StatementImportStatus,
 )
 from app.importers.excel_reader import read_workbook
-from app.importers.header_detector import detect_header
-from app.importers.sheet_classifier import classify_sheet
 from app.models import (
     AccountBalance,
     Company,
@@ -25,6 +23,7 @@ from app.models import (
     ImportRow,
     Period,
 )
+from app.normalizers.text_normalizer import normalize_account_name
 from app.schemas.import_api import (
     PreviewResponse,
     SheetApprovalRequest,
@@ -202,26 +201,39 @@ def analyze_import(db: Session, import_job: FinancialImport) -> FinancialImport:
     return import_job
 
 
-def get_sheet_analysis(import_job: FinancialImport) -> list[dict]:
-    workbook = read_workbook(Path(import_job.storage_path or ""))
+def get_sheet_analysis(db: Session, import_job: FinancialImport) -> list[dict]:
+    statements = (
+        db.query(ImportedStatement)
+        .filter(ImportedStatement.source_import_id == import_job.id)
+        .order_by(ImportedStatement.source_order)
+        .all()
+    )
     results = []
-    for sheet in workbook.sheets:
-        classification = classify_sheet(sheet.name, sheet.rows)
-        header = detect_header(sheet.rows)
-        temporal_info = detect_sheet_temporal_info(sheet)
+    for statement in statements:
         results.append(
             {
-                "sheet_name": classification.sheet_name,
-                "normalized_name": classification.normalized_name,
-                "sheet_type": classification.sheet_type.value,
-                "confidence": classification.confidence,
-                "header_row": header.row_index,
-                "header_columns": header.columns,
-                "as_of_date": temporal_info.get("as_of_date"),
-                "period_start": temporal_info.get("period_start"),
-                "period_end": temporal_info.get("period_end"),
-                "timeframe": temporal_info.get("timeframe"),
-                "date_label": temporal_info.get("date_label"),
+                "sheet_name": statement.sheet_name,
+                "normalized_name": normalize_account_name(statement.sheet_name),
+                "sheet_type": statement.statement_type or "DESCONOCIDO",
+                "confidence": (
+                    float(statement.detection_confidence)
+                    if statement.detection_confidence is not None
+                    else 0
+                ),
+                "header_row": None,
+                "header_columns": {},
+                "status": statement.status.value,
+                "discard_reason": statement.discard_reason,
+                "as_of_date": statement.detected_as_of_date,
+                "period_start": statement.detected_period_start,
+                "period_end": statement.detected_period_end,
+                "timeframe": statement.detected_timeframe,
+                "date_label": statement.detected_period_label,
+                "total_rows": statement.total_rows,
+                "recognized_rows": statement.recognized_rows,
+                "review_rows": statement.review_rows,
+                "unknown_rows": statement.unknown_rows,
+                "error_rows": statement.error_rows,
             }
         )
     return results
@@ -262,27 +274,35 @@ def get_sheet_preview(
     for line_num, r in enumerate(sheet.rows[:limit], start=1):
         formatted_row = [value.isoformat() if hasattr(value, "isoformat") else value for value in r[:col_count]]
         matched_rows = import_rows_by_line.get(line_num) or [None]
-        for matched_row in matched_rows:
-            raw_rows.append(formatted_row)
-            row_details.append(
-                SheetPreviewRow(
-                    source_row=line_num,
-                    cells=formatted_row,
-                    import_row_id=matched_row.id if matched_row else None,
-                    status=matched_row.status.value if matched_row else None,
-                    account_code=matched_row.original_code if matched_row else None,
-                    account_name=matched_row.original_name if matched_row else None,
-                    row_classification=(
-                        matched_row.row_classification.value if matched_row else "CUENTA"
-                    ),
-                    canonical_role=(
-                        matched_row.matched_account.canonical_role
-                        if matched_row and matched_row.matched_account
-                        else None
-                    ),
-                    ending_balance=matched_row.ending_balance if matched_row else None,
-                )
+        # A physical row renders exactly once; keep the first extracted account as the
+        # representative detail so dual-block rows don't duplicate the whole line.
+        matched_row = matched_rows[0]
+        raw_rows.append(formatted_row)
+        row_details.append(
+            SheetPreviewRow(
+                source_row=line_num,
+                cells=formatted_row,
+                import_row_id=matched_row.id if matched_row else None,
+                status=matched_row.status.value if matched_row else None,
+                account_code=matched_row.original_code if matched_row else None,
+                account_name=matched_row.original_name if matched_row else None,
+                row_classification=(
+                    matched_row.row_classification.value if matched_row else "CUENTA"
+                ),
+                canonical_role=(
+                    matched_row.matched_account.canonical_role
+                    if matched_row and matched_row.matched_account
+                    else None
+                ),
+                ending_balance=matched_row.ending_balance if matched_row else None,
+                source_text_column=(
+                    matched_row.source_text_column if matched_row else None
+                ),
+                source_amount_column=(
+                    matched_row.source_amount_column if matched_row else None
+                ),
             )
+        )
 
     expanded_preview_truncated = len(raw_rows) > limit
     raw_rows = raw_rows[:limit]
@@ -504,6 +524,18 @@ def approve_sheet(
     if sheet_name not in approved_sheets:
         approved_sheets.append(sheet_name)
     import_job.approved_sheets = approved_sheets
+
+    statement = (
+        db.query(ImportedStatement)
+        .filter(
+            ImportedStatement.source_import_id == import_job.id,
+            ImportedStatement.sheet_name == sheet_name,
+        )
+        .first()
+    )
+    if statement is not None:
+        statement.status = StatementImportStatus.APPROVED
+        statement.approved_at = datetime.now(UTC)
 
     db.commit()
     db.refresh(import_job)

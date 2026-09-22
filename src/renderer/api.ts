@@ -32,11 +32,18 @@ export type ImportSheet = {
   sheet_type: string;
   confidence: number;
   header_row: number | null;
+  status: string;
+  discard_reason: string | null;
   as_of_date?: string | null;
   period_start?: string | null;
   period_end?: string | null;
   timeframe?: string | null;
   date_label?: string | null;
+  total_rows: number;
+  recognized_rows: number;
+  review_rows: number;
+  unknown_rows: number;
+  error_rows: number;
 };
 export type SheetPreviewRow = {
   source_row: number;
@@ -48,6 +55,8 @@ export type SheetPreviewRow = {
   row_classification: string;
   canonical_role: CanonicalRole | null;
   ending_balance: string | null;
+  source_text_column: number | null;
+  source_amount_column: number | null;
 };
 
 export type CanonicalRole = 'ACTIVO' | 'PASIVO' | 'PATRIMONIO'
@@ -133,6 +142,10 @@ export async function uploadImport(companyId: number, periodId: number, file: Fi
 
 export function analyzeImport(importId: number): Promise<ImportResult> {
   return request<ImportResult>(`/api/imports/${importId}/analyze`, { method: 'POST' });
+}
+
+export function getImport(importId: number): Promise<ImportResult> {
+  return request<ImportResult>(`/api/imports/${importId}`);
 }
 
 export function getImportSheets(importId: number): Promise<{ sheets: ImportSheet[] }> {

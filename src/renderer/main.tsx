@@ -10,10 +10,15 @@ import { DashboardPage } from './pages/DashboardPage';
 import { FilesPage } from './pages/FilesPage';
 import { ImportReviewPage } from './pages/ImportReviewPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
+import { SheetSelectionPage } from './pages/SheetSelectionPage';
 import {
   initialPath,
   isReviewPath,
+  isSelectSheetPath,
   parseImportIdFromPath,
+  parseSheetNameFromReviewPath,
+  reviewSheetPath,
+  selectSheetPath,
   showsGlobalContextControls,
 } from './navigation';
 import './styles.css';
@@ -46,16 +51,34 @@ function App() {
 
   if (!company) return <CompaniesPage companies={companies} onSelect={enterCompany} onCreate={addCompany} />;
 
+  if (isSelectSheetPath(activePath)) {
+    const selectImportId = parseImportIdFromPath(activePath);
+    if (selectImportId !== null) {
+      return (
+        <div className="app-shell review-mode">
+          <SheetSelectionPage
+            importId={selectImportId}
+            company={company}
+            onBack={() => setActivePath('/files')}
+            onSelectSheet={(name) => setActivePath(reviewSheetPath(selectImportId, name))}
+          />
+        </div>
+      );
+    }
+  }
+
   if (isReviewPath(activePath)) {
     const reviewImportId = parseImportIdFromPath(activePath);
-    if (reviewImportId !== null) {
+    const reviewSheetName = parseSheetNameFromReviewPath(activePath);
+    if (reviewImportId !== null && reviewSheetName !== null) {
       return (
         <div className="app-shell review-mode">
           <ImportReviewPage
             importId={reviewImportId}
             company={company}
-            onBack={() => setActivePath('/files')}
-            onApproved={() => setActivePath('/files')}
+            sheetName={reviewSheetName}
+            onBack={() => setActivePath(selectSheetPath(reviewImportId))}
+            onApproved={() => setActivePath(selectSheetPath(reviewImportId))}
           />
         </div>
       );
@@ -64,7 +87,7 @@ function App() {
 
   function renderPage() {
     if (activePath === '/dashboard') return <DashboardPage company={company} onImport={() => setShowImport(true)} onFiles={() => setActivePath('/files')} />;
-    if (activePath === '/files') return <FilesPage company={company} onImport={() => setShowImport(true)} onOpenReview={(id) => setActivePath(`/imports/${id}/review`)} />;
+    if (activePath === '/files') return <FilesPage company={company} onImport={() => setShowImport(true)} onOpenReview={(id) => setActivePath(selectSheetPath(id))} />;
     if (activePath === '/statements') return <PlaceholderPage title="Estados financieros" description="Aquí veremos balance general, estado de resultados y flujo de efectivo por período." />;
     if (activePath === '/analysis') return <PlaceholderPage title="Análisis" description="Aquí estarán los indicadores, ratios y análisis financiero de la empresa." />;
     if (activePath === '/comparisons') return <ComparisonPage company={company} onFiles={() => setActivePath('/files')} />;
@@ -90,7 +113,7 @@ function App() {
         onClose={() => setShowImport(false)}
         onOpenReview={(importId) => {
           setShowImport(false);
-          setActivePath(`/imports/${importId}/review`);
+          setActivePath(selectSheetPath(importId));
         }}
       />
     )}

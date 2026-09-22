@@ -92,6 +92,8 @@ export function PreviewTable({
                 {columns.map((_, colIndex) => {
                   const cellValue = rowCells[colIndex];
                   const isNumber = typeof cellValue === 'number';
+                  const isTextSource = detail?.source_text_column === colIndex;
+                  const isAmountSource = detail?.source_amount_column === colIndex;
                   const formattedValue =
                     isNumber
                       ? Number(cellValue).toLocaleString('es-SV', {
@@ -103,8 +105,16 @@ export function PreviewTable({
                   return (
                     <td
                       key={colIndex}
-                      className={isNumber ? 'cell-number' : 'cell-text'}
-                      title={String(cellValue ?? '')}
+                      className={`${isNumber ? 'cell-number' : 'cell-text'} ${
+                        isTextSource ? 'cell-text-source' : ''
+                      } ${isAmountSource ? 'cell-amount-source' : ''}`}
+                      title={
+                        isTextSource
+                          ? 'Columna de texto de la cuenta'
+                          : isAmountSource
+                          ? 'Columna de importe'
+                          : String(cellValue ?? '')
+                      }
                     >
                       {formattedValue}
                     </td>
