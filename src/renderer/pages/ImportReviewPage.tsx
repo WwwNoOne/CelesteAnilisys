@@ -1,18 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   approveImport,
   approveImportSheet,
+  getAccountingValidation,
   getSheetPreview,
   getImportSheets,
   reviewImportRow,
   updateImportPeriod,
+  type AccountingValidationResponse,
   type ImportPreview,
   type ImportResult,
   type ImportSheet,
   type SheetPreviewRow,
 } from '../api';
 import type { Company } from '../app-state';
-import { isPendingPreviewRow } from '../import-review-state';
+import {
+  collectInvalidRowIds,
+  createRequestTracker,
+  isPendingPreviewRow,
+} from '../import-review-state';
+import { AccountingValidationPanel } from '../components/imports/AccountingValidationPanel';
 import { PreviewTable } from '../components/imports/PreviewTable';
 import { RowReviewPanel } from '../components/imports/RowReviewPanel';
 import { SheetList } from '../components/imports/SheetList';
@@ -48,6 +55,18 @@ export function ImportReviewPage({
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [accountingValidation, setAccountingValidation] =
+    useState<AccountingValidationResponse | null>(null);
+  const validationTracker = useRef(createRequestTracker()).current;
+
+  async function refreshAccountingValidation() {
+    const requestId = validationTracker.begin();
+    const validation = await getAccountingValidation(importId);
+    if (validationTracker.isCurrent(requestId)) {
+      setAccountingValidation(validation);
+    }
+    return validation;
+  }
 
   useEffect(() => {
     async function init() {
@@ -72,6 +91,7 @@ export function ImportReviewPage({
           if (previewData.period_start) setPeriodStart(previewData.period_start);
           if (previewData.period_end) setPeriodEnd(previewData.period_end);
           if (previewData.timeframe) setTimeframe(previewData.timeframe);
+          await refreshAccountingValidation();
         }
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : 'Error al cargar la importación');
@@ -83,11 +103,19 @@ export function ImportReviewPage({
   }, [importId]);
 
   async function handleSelectSheet(sheetName: string) {
+    const requestId = validationTracker.begin();
     setSelectedSheet(sheetName);
     setSelectedRow(null);
+    setAccountingValidation(null);
     try {
-      const data = await getSheetPreview(importId, sheetName);
+      const [data, validation] = await Promise.all([
+        getSheetPreview(importId, sheetName),
+        getAccountingValidation(importId),
+      ]);
       setPreview(data);
+      if (validationTracker.isCurrent(requestId)) {
+        setAccountingValidation(validation);
+      }
       if (data.as_of_date) setAsOfDate(data.as_of_date);
       if (data.period_start) setPeriodStart(data.period_start);
       if (data.period_end) setPeriodEnd(data.period_end);
@@ -142,6 +170,7 @@ export function ImportReviewPage({
         setSelectedRow(updatedRowDetail);
       }
     }
+    await refreshAccountingValidation();
   }
 
   async function handleIgnore(rowId: number) {
@@ -156,6 +185,7 @@ export function ImportReviewPage({
         setSelectedRow(updatedRowDetail);
       }
     }
+    await refreshAccountingValidation();
   }
 
   async function handleClassify(rowId: number, classification: string) {
@@ -173,6 +203,7 @@ export function ImportReviewPage({
         setSelectedRow(updatedRowDetail);
       }
     }
+    await refreshAccountingValidation();
   }
 
   async function handleUpdateFinancialLine(
@@ -188,6 +219,7 @@ export function ImportReviewPage({
       setSelectedRow(
         updatedPreview.row_details.find((row) => row.import_row_id === rowId) ?? null,
       );
+      await refreshAccountingValidation();
     }
   }
 
@@ -221,6 +253,7 @@ export function ImportReviewPage({
         setApprovedSheets((prev) => Array.from(new Set([...prev, selectedSheet])));
         setSuccessMessage(`✓ Se guardaron ${res.balances_saved} saldos contables de la hoja ${selectedSheet} en la base de datos.`);
         setTimeout(() => setSuccessMessage(''), 5000);
+        await refreshAccountingValidation();
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Error al aprobar la hoja');
@@ -234,6 +267,11 @@ export function ImportReviewPage({
     setApproving(true);
     setError('');
     try {
+      const validation = await refreshAccountingValidation();
+      if (!validation.valid) {
+        setError('La importación tiene ecuaciones contables pendientes de corregir.');
+        return;
+      }
       const approved = await approveImport(importId);
       setImportJob(approved);
       onApproved();
@@ -249,6 +287,7 @@ export function ImportReviewPage({
     !importJob?.period_conflict &&
     (importJob?.review_rows ?? 0) === 0 &&
     importJob?.status !== 'APPROVED';
+  const invalidRowIds = collectInvalidRowIds(accountingValidation);
 
   if (loading) {
     return (
@@ -351,7 +390,7 @@ export function ImportReviewPage({
               ? 'Aprobando…'
               : importJob?.status === 'APPROVED'
               ? '✓ Importación aprobada'
-              : 'Aprobar importación'}
+              : 'Validar y aprobar'}
           </button>
         </div>
       </header>
@@ -387,6 +426,8 @@ export function ImportReviewPage({
           <strong>Atención:</strong> Las hojas del libro contienen distintos años (ej. 2024 y 2025). Valida arriba el período correspondiente a esta importación para poder aprobar.
         </div>
       )}
+
+      <AccountingValidationPanel validation={accountingValidation} />
 
       {/* Main 3-column workspace */}
       <main className="review-main-columns">
@@ -437,6 +478,7 @@ export function ImportReviewPage({
             rows={preview?.rows ?? []}
             rowDetails={preview?.row_details ?? []}
             selectedRowId={selectedRow?.import_row_id}
+            invalidRowIds={invalidRowIds}
             onSelectRow={(rowDetail) => setSelectedRow(rowDetail)}
           />
         </section>

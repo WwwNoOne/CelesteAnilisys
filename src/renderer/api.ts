@@ -54,6 +54,29 @@ export type CanonicalRole = 'ACTIVO' | 'PASIVO' | 'PATRIMONIO'
   | 'VENTAS' | 'COSTO_VENTAS' | 'UTILIDAD_BRUTA'
   | 'GASTOS' | 'IMPUESTOS' | 'RESULTADO_EJERCICIO';
 
+export type AccountingValidationStatus =
+  | 'VALID'
+  | 'MISMATCH'
+  | 'MISSING_COMPONENTS'
+  | 'DUPLICATE_CONFLICT';
+
+export type AccountingRuleResult = {
+  rule_id: string;
+  label: string;
+  status: AccountingValidationStatus;
+  left_value: string | null;
+  right_value: string | null;
+  difference: string | null;
+  tolerance: string;
+  missing_roles: CanonicalRole[];
+  row_ids: number[];
+};
+
+export type AccountingValidationResponse = {
+  valid: boolean;
+  rules: AccountingRuleResult[];
+};
+
 export type RowReviewPayload = {
   action: 'match' | 'ignore' | 'classify' | 'update_financial_line';
   account_id?: number;
@@ -118,6 +141,10 @@ export function getImportSheets(importId: number): Promise<{ sheets: ImportSheet
 
 export function getImportIssues(importId: number): Promise<{ rows: ImportIssue[]; total: number }> {
   return request(`/api/imports/${importId}/issues`);
+}
+
+export function getAccountingValidation(importId: number) {
+  return request<AccountingValidationResponse>(`/api/imports/${importId}/accounting-validation`);
 }
 
 export function getSheetPreview(importId: number, sheetName: string, limit = 200): Promise<ImportPreview> {

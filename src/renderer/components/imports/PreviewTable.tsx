@@ -6,6 +6,7 @@ type PreviewTableProps = {
   rowDetails?: SheetPreviewRow[];
   selectedRowId?: number | null;
   onSelectRow?: (rowDetail: SheetPreviewRow) => void;
+  invalidRowIds?: Set<number>;
 };
 
 const STATUS_LABELS: Record<string, { label: string; badgeClass: string }> = {
@@ -31,6 +32,7 @@ export function PreviewTable({
   rowDetails = [],
   selectedRowId = null,
   onSelectRow,
+  invalidRowIds = new Set(),
 }: PreviewTableProps) {
   if (rows.length === 0) {
     return (
@@ -57,6 +59,7 @@ export function PreviewTable({
             const detail = rowDetails[rowIndex];
             const sourceRowNum = detail?.source_row ?? rowIndex + 1;
             const isSelected = detail?.import_row_id != null && detail.import_row_id === selectedRowId;
+            const isInvalid = detail?.import_row_id != null && invalidRowIds.has(detail.import_row_id);
             const isNonAccount = detail?.row_classification && detail.row_classification !== 'CUENTA';
             const badgeInfo = isNonAccount
               ? CLASSIFICATION_BADGES[detail.row_classification]
@@ -69,7 +72,7 @@ export function PreviewTable({
                 key={sourceRowNum}
                 className={`excel-preview-row ${isSelected ? 'row-selected' : ''} ${
                   detail?.import_row_id != null ? 'clickable-row' : ''
-                }`}
+                } ${isInvalid ? 'financial-row-invalid' : ''}`}
                 onClick={() => {
                   if (detail && onSelectRow) {
                     onSelectRow(detail);

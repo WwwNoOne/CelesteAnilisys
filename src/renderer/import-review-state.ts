@@ -1,4 +1,30 @@
-import type { CanonicalRole, RowReviewPayload, SheetPreviewRow } from './api';
+import type {
+  AccountingValidationResponse,
+  CanonicalRole,
+  RowReviewPayload,
+  SheetPreviewRow,
+} from './api';
+
+export function collectInvalidRowIds(validation: AccountingValidationResponse | null) {
+  return new Set(
+    validation?.rules
+      .filter((rule) => rule.status !== 'VALID')
+      .flatMap((rule) => rule.row_ids) ?? [],
+  );
+}
+
+export function createRequestTracker() {
+  let current = 0;
+  return {
+    begin() {
+      current += 1;
+      return current;
+    },
+    isCurrent(request: number) {
+      return request === current;
+    },
+  };
+}
 
 export function buildFinancialLineUpdate(
   accountId: number,

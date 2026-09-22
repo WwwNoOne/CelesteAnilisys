@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { isReviewPath, parseImportIdFromPath } from '../../src/renderer/navigation';
 import {
   buildFinancialLineUpdate,
+  collectInvalidRowIds,
+  createRequestTracker,
   isPendingPreviewRow,
 } from '../../src/renderer/import-review-state';
+import type { AccountingValidationResponse } from '../../src/renderer/api';
 
 describe('import review state', () => {
   it('does not count visual rows without import_row_id', () => {
@@ -24,6 +27,27 @@ describe('import review state', () => {
 
   it('keeps explicit zero in correction payload', () => {
     expect(buildFinancialLineUpdate(10, 'TOTAL', 'COSTO_VENTAS', '0').ending_balance).toBe('0');
+  });
+
+  it('collects rows only from blocking rules', () => {
+    const ids = collectInvalidRowIds({
+      valid: false,
+      rules: [
+        { rule_id: 'balance', status: 'MISMATCH', row_ids: [1, 2, 3] },
+        { rule_id: 'gross', status: 'VALID', row_ids: [4, 5] },
+      ],
+    } as AccountingValidationResponse);
+
+    expect(ids).toEqual(new Set([1, 2, 3]));
+  });
+
+  it('invalidates old validation after changing sheets', () => {
+    const tracker = createRequestTracker();
+    const oldRequest = tracker.begin();
+    const currentRequest = tracker.begin();
+
+    expect(tracker.isCurrent(oldRequest)).toBe(false);
+    expect(tracker.isCurrent(currentRequest)).toBe(true);
   });
   it('identifies review path correctly', () => {
     expect(isReviewPath('/imports/12/review')).toBe(true);
