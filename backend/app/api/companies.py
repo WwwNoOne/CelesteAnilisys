@@ -106,6 +106,7 @@ def list_company_accounts(
                 name=acc.name,
                 normalized_name=acc.normalized_name,
                 account_type=acc.account_type.value if hasattr(acc.account_type, "value") else str(acc.account_type),
+                canonical_role=acc.canonical_role,
                 statement=h_info["statement"],
                 statement_label=h_info["statement_label"],
                 category=h_info["category"],
@@ -138,6 +139,7 @@ def create_company_account(
         name=name,
         normalized_name=normalize_account_name(name),
         account_type=acc_type,
+        canonical_role=payload.canonical_role,
     )
     db.add(account)
     db.commit()
@@ -150,6 +152,7 @@ def create_company_account(
         name=account.name,
         normalized_name=account.normalized_name,
         account_type=account.account_type.value if hasattr(account.account_type, "value") else str(account.account_type),
+        canonical_role=account.canonical_role,
         statement=h_info["statement"],
         statement_label=h_info["statement_label"],
         category=h_info["category"],

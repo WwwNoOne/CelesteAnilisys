@@ -11,6 +11,18 @@ class AccountType(StrEnum):
     OTRO = "OTRO"
 
 
+class CanonicalRole(StrEnum):
+    ACTIVO = "ACTIVO"
+    PASIVO = "PASIVO"
+    PATRIMONIO = "PATRIMONIO"
+    VENTAS = "VENTAS"
+    COSTO_VENTAS = "COSTO_VENTAS"
+    UTILIDAD_BRUTA = "UTILIDAD_BRUTA"
+    GASTOS = "GASTOS"
+    IMPUESTOS = "IMPUESTOS"
+    RESULTADO_EJERCICIO = "RESULTADO_EJERCICIO"
+
+
 class AccountNature(StrEnum):
     DEUDORA = "DEUDORA"
     ACREEDORA = "ACREEDORA"

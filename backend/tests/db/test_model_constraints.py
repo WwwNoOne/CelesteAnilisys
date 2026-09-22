@@ -2,7 +2,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
-from app.domain.enums import AccountType, MatchType, RowStatus
+from app.domain.enums import AccountType, CanonicalRole, MatchType, RowStatus
 from app.models import Account, AccountBalance, Company, FinancialImport, ImportRow, Period
 
 
@@ -91,3 +91,28 @@ def test_import_row_keeps_source_traceability_and_balance_is_period_specific():
     assert saved_row.status is RowStatus.MATCHED
     assert saved_balance is not None
     assert str(saved_balance.ending_balance) == "1250.50"
+
+
+def test_account_persists_optional_canonical_role():
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        company = Company(name="Empresa de prueba")
+        session.add(company)
+        session.flush()
+        account = Account(
+            company_id=company.id,
+            code="TOTAL-ACTIVO",
+            name="Activo",
+            account_type=AccountType.ACTIVO,
+            canonical_role=CanonicalRole.ACTIVO,
+        )
+        session.add(account)
+        session.commit()
+        account_id = account.id
+
+        saved = session.get(Account, account_id)
+
+    assert saved is not None
+    assert saved.canonical_role == CanonicalRole.ACTIVO

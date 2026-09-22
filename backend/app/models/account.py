@@ -5,7 +5,7 @@ from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, UniqueConstr
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-from app.domain.enums import AccountNature, AccountType, FinancialStatement
+from app.domain.enums import AccountNature, AccountType, CanonicalRole, FinancialStatement
 from app.normalizers.text_normalizer import normalize_account_name
 
 if TYPE_CHECKING:
@@ -26,6 +26,9 @@ class Account(Base):
     normalized_name: Mapped[str] = mapped_column(String(300), nullable=False)
     account_type: Mapped[AccountType] = mapped_column(
         Enum(AccountType, native_enum=False), nullable=False, default=AccountType.OTRO
+    )
+    canonical_role: Mapped[CanonicalRole | None] = mapped_column(
+        Enum(CanonicalRole, native_enum=False), nullable=True
     )
     nature: Mapped[AccountNature] = mapped_column(
         Enum(AccountNature, native_enum=False), nullable=False, default=AccountNature.OTRA

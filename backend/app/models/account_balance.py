@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -29,6 +29,7 @@ class AccountBalance(Base):
     debits: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
     credits: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
     ending_balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    is_authoritative: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     source_sheet: Mapped[str] = mapped_column(String(200), nullable=False)
     source_row: Mapped[int] = mapped_column(Integer, nullable=False)
 

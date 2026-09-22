@@ -1,5 +1,7 @@
 from pydantic import BaseModel, ConfigDict
 
+from app.domain.enums import CanonicalRole
+
 
 class PeriodCreate(BaseModel):
     label: str
@@ -36,6 +38,7 @@ class AccountResponse(BaseModel):
     name: str
     normalized_name: str
     account_type: str | None = None
+    canonical_role: CanonicalRole | None = None
     statement: str = "BALANCE_GENERAL"
     statement_label: str = "Balance General"
     category: str = "General"
@@ -46,5 +49,6 @@ class AccountCreate(BaseModel):
     code: str
     name: str
     account_type: str = "ACTIVO"
+    canonical_role: CanonicalRole | None = None
     statement: str | None = None
     category: str | None = None
