@@ -1,10 +1,11 @@
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Enum, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-from app.domain.enums import MatchType, RowStatus
+from app.domain.enums import MatchType, RowClassification, RowStatus
 
 if TYPE_CHECKING:
     from app.models.account import Account
@@ -31,6 +32,15 @@ class ImportRow(Base):
     status: Mapped[RowStatus] = mapped_column(
         Enum(RowStatus, native_enum=False), nullable=False, default=RowStatus.UNKNOWN
     )
+    row_classification: Mapped[RowClassification] = mapped_column(
+        Enum(RowClassification, native_enum=False),
+        nullable=False,
+        default=RowClassification.CUENTA,
+    )
+    opening_balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    debits: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    credits: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    ending_balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
 
     source_import: Mapped["FinancialImport"] = relationship(back_populates="rows")
     matched_account: Mapped["Account | None"] = relationship(back_populates="import_rows")

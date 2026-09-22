@@ -4,7 +4,14 @@ Aplicación de escritorio para importar archivos financieros (`.xls`, `.xlsx`, `
 
 ## Estado actual
 
-El proyecto se encuentra en la fase inicial de definición. Se creó una estructura tecnológica-neutral para poder seleccionar posteriormente el framework de escritorio, el lenguaje y el motor de base de datos.
+El proyecto implementa el **Módulo 1: Ingesta y normalización de estados financieros** y el **Espacio de revisión de importaciones (Workspace)**:
+- Detección automática y validación interactiva de períodos y conflictos por hojas (ej. balances con hojas 2024 y 2025).
+- Compatibilidad con formato de reporte y formato de cuenta (bloques paralelos ACTIVO / PASIVO y PATRIMONIO).
+- Extracción de códigos contables tanto en columnas dedicadas como integrados en la misma celda de descripción (`1101 EFECTIVO`).
+- Descarte automático de metadatos superiores (empresa, título, notas de moneda) y firmas inferiores (representante legal, contador).
+- Contador exacto de filas desconocidas (`UNKNOWN`), filas a revisar (`NEEDS_REVIEW`), cuentas nuevas y errores.
+- Espacio de trabajo a pantalla completa con vista previa del Excel, lista de hojas, tabla navegable con números de fila originales y panel lateral de mapeo de cuentas e ignorado de filas.
+- Historial de importaciones por empresa en la sección `Archivos`.
 
 ## Estructura
 

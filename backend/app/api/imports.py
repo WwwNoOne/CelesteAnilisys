@@ -7,13 +7,17 @@ from app.models import FinancialImport, ImportRow
 from app.schemas.import_api import (
     ImportResponse,
     ImportRowsResponse,
+    PeriodUpdate,
     PreviewResponse,
     RowReviewUpdate,
+    SheetApprovalRequest,
+    SheetApprovalResponse,
     SheetsResponse,
 )
 from app.services.excel_import_service import (
     analyze_import,
     approve_import,
+    approve_sheet,
     create_import,
     get_sheet_analysis,
     get_sheet_preview,
@@ -55,6 +59,48 @@ def get_import(import_id: int, db: Session = Depends(get_db)) -> FinancialImport
     return import_job
 
 
+@router.patch("/{import_id}/period", response_model=ImportResponse)
+def update_import_period(import_id: int, payload: PeriodUpdate, db: Session = Depends(get_db)) -> FinancialImport:
+    import_job = db.get(FinancialImport, import_id)
+    if import_job is None:
+        raise HTTPException(status_code=404, detail="Importación no encontrada")
+    import_job.detected_period_label = payload.label.strip()
+    import_job.detected_period_year = payload.year
+    import_job.detected_period_month = payload.month
+    import_job.period_source = "user"
+    import_job.period_conflict = False
+    import_job.period_validated = True
+
+    if payload.statement_type is not None:
+        import_job.detected_statement_type = payload.statement_type
+    if payload.as_of_date is not None:
+        import_job.detected_as_of_date = payload.as_of_date
+    if payload.period_start is not None:
+        import_job.detected_period_start = payload.period_start
+    if payload.period_end is not None:
+        import_job.detected_period_end = payload.period_end
+    if payload.timeframe is not None:
+        import_job.detected_timeframe = payload.timeframe
+
+    if import_job.period:
+        import_job.period.label = payload.label.strip()
+        import_job.period.year = payload.year
+        if payload.statement_type:
+            import_job.period.statement_type = payload.statement_type
+        if payload.as_of_date:
+            import_job.period.as_of_date = payload.as_of_date
+        if payload.period_start:
+            import_job.period.period_start = payload.period_start
+        if payload.period_end:
+            import_job.period.period_end = payload.period_end
+        if payload.timeframe:
+            import_job.period.timeframe = payload.timeframe
+
+    db.commit()
+    db.refresh(import_job)
+    return import_job
+
+
 @router.get("/{import_id}/sheets", response_model=SheetsResponse)
 def get_import_sheets(import_id: int, db: Session = Depends(get_db)) -> SheetsResponse:
     import_job = db.get(FinancialImport, import_id)
@@ -67,15 +113,19 @@ def get_import_sheets(import_id: int, db: Session = Depends(get_db)) -> SheetsRe
 
 
 @router.get("/{import_id}/sheets/{sheet_name}/preview", response_model=PreviewResponse)
-def get_preview(import_id: int, sheet_name: str, db: Session = Depends(get_db)) -> PreviewResponse:
+def get_preview(
+    import_id: int,
+    sheet_name: str,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+) -> PreviewResponse:
     import_job = db.get(FinancialImport, import_id)
     if import_job is None:
         raise HTTPException(status_code=404, detail="Importación no encontrada")
     try:
-        rows = get_sheet_preview(import_job, sheet_name)
+        return get_sheet_preview(import_job, sheet_name, db=db, limit=limit)
     except (FileNotFoundError, ValueError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
-    return PreviewResponse(sheet_name=sheet_name, rows=rows, total_rows=len(rows))
 
 
 @router.get("/{import_id}/rows", response_model=ImportRowsResponse)
@@ -96,6 +146,7 @@ def get_import_rows(import_id: int, db: Session = Depends(get_db)) -> ImportRows
                 "match_type": row.match_type.value,
                 "confidence": float(row.confidence) if row.confidence is not None else None,
                 "status": row.status.value,
+                "row_classification": row.row_classification.value,
             }
             for row in rows
         ],
@@ -133,6 +184,7 @@ def get_import_issues(import_id: int, db: Session = Depends(get_db)) -> ImportRo
                 "match_type": row.match_type.value,
                 "confidence": float(row.confidence) if row.confidence is not None else None,
                 "status": row.status.value,
+                "row_classification": row.row_classification.value,
             }
             for row in rows
         ],
@@ -146,7 +198,14 @@ def review_import_row(import_id: int, row_id: int, payload: RowReviewUpdate, db:
     if import_job is None:
         raise HTTPException(status_code=404, detail="Importación no encontrada")
     try:
-        return review_row(db, import_job, row_id, payload.action, payload.account_id)
+        return review_row(
+            db,
+            import_job,
+            row_id,
+            payload.action,
+            payload.account_id,
+            payload.row_classification,
+        )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
@@ -158,5 +217,21 @@ def approve_uploaded_import(import_id: int, db: Session = Depends(get_db)) -> Fi
         raise HTTPException(status_code=404, detail="Importación no encontrada")
     try:
         return approve_import(db, import_job)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.post("/{import_id}/sheets/{sheet_name}/approve", response_model=SheetApprovalResponse)
+def approve_import_sheet(
+    import_id: int,
+    sheet_name: str,
+    payload: SheetApprovalRequest,
+    db: Session = Depends(get_db),
+) -> SheetApprovalResponse:
+    import_job = db.get(FinancialImport, import_id)
+    if import_job is None:
+        raise HTTPException(status_code=404, detail="Importación no encontrada")
+    try:
+        return approve_sheet(db, import_job, sheet_name, payload)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error

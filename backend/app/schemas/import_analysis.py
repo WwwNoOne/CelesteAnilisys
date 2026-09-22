@@ -30,3 +30,4 @@ class HeaderDetection:
     row_index: int | None
     columns: dict[str, int] = field(default_factory=dict)
     confidence: float = 0
+    column_blocks: list[dict[str, int]] = field(default_factory=list)

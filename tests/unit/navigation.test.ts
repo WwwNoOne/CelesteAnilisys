@@ -21,4 +21,12 @@ describe('menú lateral', () => {
   it('no expone SUBIDA como una sección principal', () => {
     expect(menuItems.some((item) => item.id === 'subida')).toBe(false);
   });
+
+  it('reconoce rutas temporales de revisión de importación', async () => {
+    const { isReviewPath, parseImportIdFromPath } = await import('../../src/renderer/navigation');
+    expect(isReviewPath('/imports/42/review')).toBe(true);
+    expect(isReviewPath('/files')).toBe(false);
+    expect(parseImportIdFromPath('/imports/42/review')).toBe(42);
+    expect(parseImportIdFromPath('/files')).toBeNull();
+  });
 });

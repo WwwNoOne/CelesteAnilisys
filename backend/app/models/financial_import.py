@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, func
+from sqlalchemy import JSON, Date, DateTime, Enum, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -29,8 +29,21 @@ class FinancialImport(Base):
     total_rows: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     recognized_rows: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     review_rows: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    unknown_rows: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     new_accounts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_rows: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    detected_period_label: Mapped[str | None] = mapped_column(String(50))
+    detected_period_year: Mapped[int | None] = mapped_column(Integer)
+    detected_period_month: Mapped[int | None] = mapped_column(Integer)
+    period_source: Mapped[str | None] = mapped_column(String(30))
+    period_validated: Mapped[bool] = mapped_column(nullable=False, default=False)
+    period_conflict: Mapped[bool] = mapped_column(nullable=False, default=False)
+    detected_statement_type: Mapped[str | None] = mapped_column(String(50))
+    detected_as_of_date: Mapped[date | None] = mapped_column(Date)
+    detected_period_start: Mapped[date | None] = mapped_column(Date)
+    detected_period_end: Mapped[date | None] = mapped_column(Date)
+    detected_timeframe: Mapped[str | None] = mapped_column(String(30))
+    approved_sheets: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
 
     company: Mapped["Company"] = relationship(back_populates="imports")
     period: Mapped["Period"] = relationship(back_populates="imports")

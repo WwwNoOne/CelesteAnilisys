@@ -7,8 +7,9 @@ import { Sidebar } from './components/Sidebar';
 import { CompaniesPage } from './pages/CompaniesPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { FilesPage } from './pages/FilesPage';
+import { ImportReviewPage } from './pages/ImportReviewPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
-import { initialPath } from './navigation';
+import { initialPath, isReviewPath, parseImportIdFromPath } from './navigation';
 import './styles.css';
 
 function App() {
@@ -39,9 +40,25 @@ function App() {
 
   if (!company) return <CompaniesPage companies={companies} onSelect={enterCompany} onCreate={addCompany} />;
 
+  if (isReviewPath(activePath)) {
+    const reviewImportId = parseImportIdFromPath(activePath);
+    if (reviewImportId !== null) {
+      return (
+        <div className="app-shell review-mode">
+          <ImportReviewPage
+            importId={reviewImportId}
+            company={company}
+            onBack={() => setActivePath('/files')}
+            onApproved={() => setActivePath('/files')}
+          />
+        </div>
+      );
+    }
+  }
+
   function renderPage() {
     if (activePath === '/dashboard') return <DashboardPage company={company} onImport={() => setShowImport(true)} onFiles={() => setActivePath('/files')} />;
-    if (activePath === '/files') return <FilesPage company={company} onImport={() => setShowImport(true)} />;
+    if (activePath === '/files') return <FilesPage company={company} onImport={() => setShowImport(true)} onOpenReview={(id) => setActivePath(`/imports/${id}/review`)} />;
     if (activePath === '/statements') return <PlaceholderPage title="Estados financieros" description="Aquí veremos balance general, estado de resultados y flujo de efectivo por período." />;
     if (activePath === '/analysis') return <PlaceholderPage title="Análisis" description="Aquí estarán los indicadores, ratios y análisis financiero de la empresa." />;
     if (activePath === '/comparisons') return <PlaceholderPage title="Comparaciones" description="Compara años, meses y períodos cuando los datos estén disponibles." />;
@@ -54,7 +71,16 @@ function App() {
       <ContextHeader company={company} period={period} view={view} onPeriodChange={setPeriod} onViewChange={setView} />
       {renderPage()}
     </main>
-    {showImport && <ImportWizard company={company} onClose={() => setShowImport(false)} />}
+    {showImport && (
+      <ImportWizard
+        company={company}
+        onClose={() => setShowImport(false)}
+        onOpenReview={(importId) => {
+          setShowImport(false);
+          setActivePath(`/imports/${importId}/review`);
+        }}
+      />
+    )}
   </div>;
 }
 

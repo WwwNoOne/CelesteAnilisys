@@ -99,3 +99,52 @@ def test_extraction_preserves_sheet_and_excel_row():
     assert candidates[0].name == "Vehículos"
     assert candidates[0].sheet == "Balance de Comprobación"
     assert candidates[0].excel_row == 2
+
+
+def test_extraction_splits_inline_code_and_name():
+    sheet = SheetSnapshot(
+        name="Balance",
+        rows=[
+            ["Cuentas", "Saldo"],
+            ["110102  Bancos Nacionales", 15000],
+        ],
+    )
+    header = HeaderDetection(
+        row_index=0,
+        columns={"account_name": 0, "ending_balance": 1},
+        confidence=1,
+    )
+    candidates = extract_account_candidates(sheet, header)
+    assert len(candidates) == 1
+    assert candidates[0].code == "110102"
+    assert candidates[0].name == "Bancos Nacionales"
+
+
+def test_extraction_skips_metadata_and_signatures_in_report_layout():
+    sheet = SheetSnapshot(
+        name="Reporte",
+        rows=[
+            ["EMPRESA S.A. DE C.V.", None],
+            ["BALANCE GENERAL AL 31 DE DICIEMBRE", None],
+            ["(Valores expresados en dolares)", None],
+            ["ACTIVOS", None],
+            ["EFECTIVO Y EQUIVALENTES", 1200],
+            ["TOTAL ACTIVO", 1200],
+            ["GABRIEL PERDOMO RODAS", None],
+            ["REPRESENTANTE LEGAL", None],
+        ],
+    )
+    header = HeaderDetection(
+        row_index=-1,
+        columns={"account_name": 0, "ending_balance": 1},
+        confidence=0.7,
+        column_blocks=[{"account_name": 0, "ending_balance": 1, "amount_start": 1, "amount_end": 2}],
+    )
+    candidates = extract_account_candidates(sheet, header)
+    names = [c.name for c in candidates]
+    assert "EMPRESA S.A. DE C.V." not in names
+    assert "BALANCE GENERAL AL 31 DE DICIEMBRE" not in names
+    assert "GABRIEL PERDOMO RODAS" not in names
+    assert "REPRESENTANTE LEGAL" not in names
+    assert "EFECTIVO Y EQUIVALENTES" in names
+    assert "TOTAL ACTIVO" in names

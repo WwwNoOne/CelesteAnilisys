@@ -1,39 +1,12 @@
 from pathlib import Path
 
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
-from sqlalchemy.pool import StaticPool
-
-from app.api.dependencies import get_db
-from app.db.base import Base
-from app.main import app
-from app.models import Company, Period
+from tests.conftest import client, seed_test_db
 
 EXAMPLE_FILE = Path("data/examples/2025-BG BENGALA.xlsx")
-engine = create_engine(
-    "sqlite://",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-Base.metadata.create_all(engine)
-
-
-def override_get_db():
-    with Session(engine) as session:
-        yield session
-
-
-app.dependency_overrides[get_db] = override_get_db
-client = TestClient(app)
 
 
 def setup_function():
-    with Session(engine) as session:
-        session.query(Company).delete()
-        session.query(Period).delete()
-        session.add_all([Company(id=1, name="Bengala"), Period(id=1, label="2025", year=2025)])
-        session.commit()
+    seed_test_db()
 
 
 def test_rejects_unsupported_file_extension():

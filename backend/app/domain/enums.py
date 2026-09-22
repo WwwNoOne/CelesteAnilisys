@@ -44,6 +44,15 @@ class RowStatus(StrEnum):
     IGNORED = "IGNORED"
 
 
+class RowClassification(StrEnum):
+    CUENTA = "CUENTA"
+    SUBTOTAL = "SUBTOTAL"
+    TOTAL = "TOTAL"
+    ENCABEZADO = "ENCABEZADO"
+    NOTA = "NOTA"
+    IGNORAR = "IGNORAR"
+
+
 class ImportStatus(StrEnum):
     UPLOADED = "UPLOADED"
     ANALYZING = "ANALYZING"
