@@ -12,6 +12,7 @@ import {
   type SheetPreviewRow,
 } from '../api';
 import type { Company } from '../app-state';
+import { isPendingPreviewRow } from '../import-review-state';
 import { PreviewTable } from '../components/imports/PreviewTable';
 import { RowReviewPanel } from '../components/imports/RowReviewPanel';
 import { SheetList } from '../components/imports/SheetList';
@@ -387,9 +388,7 @@ export function ImportReviewPage({
             <div className="preview-header-actions">
               {(() => {
                 const pendingCount =
-                  preview?.row_details.filter(
-                    (r) => r.row_classification === 'CUENTA' && r.status !== 'MATCHED',
-                  ).length ?? 0;
+                  preview?.row_details.filter(isPendingPreviewRow).length ?? 0;
                 const isApproved = approvedSheets.includes(selectedSheet);
                 return (
                   <button

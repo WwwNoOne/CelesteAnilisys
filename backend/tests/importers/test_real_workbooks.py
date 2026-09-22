@@ -1,3 +1,4 @@
+from decimal import Decimal
 from pathlib import Path
 
 from app.importers.excel_reader import read_workbook
@@ -41,3 +42,17 @@ def test_statement_examples_produce_candidates_without_explicit_headers():
 
     assert len(candidates) > 0
     assert any(candidate.name == "INGRESOS POR SERVICIOS" for candidate in candidates)
+
+
+def test_bengala_2024_preserves_declared_lines():
+    workbook = read_workbook(EXAMPLES_DIR / "2025-ER BENGALA.xlsx")
+    sheet = next(item for item in workbook.sheets if item.name == "2024")
+
+    by_name = {
+        candidate.name: candidate
+        for candidate in extract_account_candidates(sheet, detect_header(sheet.rows))
+    }
+
+    assert by_name["INGRESOS POR SERVICIOS"].ending_balance == Decimal("12000.00")
+    assert by_name["GASTOS DE ADMINISTRACION"].ending_balance == Decimal("1041.57")
+    assert by_name["UTILIDAD DEL EJERCICIO"].ending_balance == Decimal("5608.04")

@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { isReviewPath, parseImportIdFromPath } from '../../src/renderer/navigation';
+import { isPendingPreviewRow } from '../../src/renderer/import-review-state';
 
 describe('import review state', () => {
+  it('does not count visual rows without import_row_id', () => {
+    expect(
+      isPendingPreviewRow({
+        source_row: 1,
+        cells: ['Título'],
+        import_row_id: null,
+        status: null,
+        account_code: null,
+        account_name: null,
+        row_classification: 'CUENTA',
+      }),
+    ).toBe(false);
+  });
   it('identifies review path correctly', () => {
     expect(isReviewPath('/imports/12/review')).toBe(true);
     expect(isReviewPath('/imports/abc/review')).toBe(false);

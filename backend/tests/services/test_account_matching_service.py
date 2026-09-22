@@ -148,3 +148,33 @@ def test_extraction_skips_metadata_and_signatures_in_report_layout():
     assert "REPRESENTANTE LEGAL" not in names
     assert "EFECTIVO Y EQUIVALENTES" in names
     assert "TOTAL ACTIVO" in names
+
+
+def test_report_layout_emits_two_lateral_candidates():
+    sheet = SheetSnapshot(
+        name="Balance",
+        rows=[["Activo", None, 50000, "Pasivo", None, 30000]],
+    )
+    header = HeaderDetection(row_index=-1, columns={}, confidence=0.5)
+
+    result = extract_account_candidates(sheet, header)
+
+    assert [(candidate.name, candidate.ending_balance) for candidate in result] == [
+        ("Activo", Decimal("50000.00")),
+        ("Pasivo", Decimal("30000.00")),
+    ]
+
+
+def test_text_context_and_empty_rows_emit_no_candidates():
+    sheet = SheetSnapshot(
+        name="Balance",
+        rows=[["Activo", None, "Pasivo"], [None, None, None]],
+    )
+
+    result = extract_account_candidates(
+        sheet,
+        HeaderDetection(row_index=-1, columns={}, confidence=0.5),
+    )
+
+    assert result == []
+from decimal import Decimal

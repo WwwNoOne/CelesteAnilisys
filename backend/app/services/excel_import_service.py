@@ -98,7 +98,11 @@ def analyze_import(db: Session, import_job: FinancialImport) -> FinancialImport:
             if header.row_index is None:
                 continue
             for candidate in extract_account_candidates(sheet, header):
-                if candidate.row_classification != RowClassification.CUENTA:
+                if candidate.row_classification in (
+                    RowClassification.ENCABEZADO,
+                    RowClassification.NOTA,
+                    RowClassification.IGNORAR,
+                ):
                     matched_account_id = None
                     match_type = MatchType.NONE
                     confidence = 1.0
@@ -393,7 +397,12 @@ def approve_sheet(
     valid_rows = [
         r
         for r in sheet_rows
-        if r.row_classification == RowClassification.CUENTA
+        if r.row_classification
+        in (
+            RowClassification.CUENTA,
+            RowClassification.SUBTOTAL,
+            RowClassification.TOTAL,
+        )
         and r.matched_account_id is not None
     ]
     saved_count = _persist_balances(

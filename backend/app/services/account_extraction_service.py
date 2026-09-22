@@ -7,6 +7,7 @@ from typing import Any
 from app.domain.enums import RowClassification
 from app.normalizers.text_normalizer import is_metadata_or_signature, normalize_account_name
 from app.schemas.import_analysis import HeaderDetection, SheetSnapshot
+from app.services.row_block_extraction_service import extract_row_blocks
 
 CODE_NAME_PATTERN = re.compile(r"^(\d+(?:[\.\-]\d+)*)\s+(.+)$")
 
@@ -91,6 +92,9 @@ def extract_account_candidates(
     if header.row_index is None:
         return []
 
+    if header.row_index < 0:
+        return _extract_report_candidates(sheet)
+
     candidates: list[AccountCandidate] = []
     blocks = header.column_blocks or ([header.columns] if header.columns else [])
     start_row = max(0, header.row_index + 1)
@@ -147,6 +151,29 @@ def extract_account_candidates(
                 )
             )
 
+    return candidates
+
+
+def _extract_report_candidates(sheet: SheetSnapshot) -> list[AccountCandidate]:
+    candidates: list[AccountCandidate] = []
+    for row_index, row in enumerate(sheet.rows, start=1):
+        for block in extract_row_blocks(row):
+            if block.amount is None or is_metadata_or_signature(block.text):
+                continue
+            candidates.append(
+                AccountCandidate(
+                    code=None,
+                    name=block.text,
+                    normalized_name=block.normalized_text,
+                    sheet=sheet.name,
+                    excel_row=row_index,
+                    row_classification=detect_candidate_classification(
+                        block.normalized_text,
+                        has_amount=True,
+                    ),
+                    ending_balance=block.amount,
+                )
+            )
     return candidates
 
 
