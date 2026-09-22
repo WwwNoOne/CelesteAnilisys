@@ -8,6 +8,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.account import Account
+    from app.models.imported_statement import ImportedStatement
 
 
 class AccountBalance(Base):
@@ -25,6 +26,9 @@ class AccountBalance(Base):
     source_import_id: Mapped[int] = mapped_column(
         ForeignKey("financial_imports.id"), nullable=False
     )
+    imported_statement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("imported_statements.id")
+    )
     opening_balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
     debits: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
     credits: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
@@ -34,3 +38,6 @@ class AccountBalance(Base):
     source_row: Mapped[int] = mapped_column(Integer, nullable=False)
 
     account: Mapped["Account"] = relationship(back_populates="balances")
+    imported_statement: Mapped["ImportedStatement | None"] = relationship(
+        back_populates="balances"
+    )

@@ -10,6 +10,7 @@ from app.domain.enums import ImportStatus
 if TYPE_CHECKING:
     from app.models.company import Company
     from app.models.import_row import ImportRow
+    from app.models.imported_statement import ImportedStatement
     from app.models.period import Period
 
 
@@ -18,7 +19,7 @@ class FinancialImport(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), nullable=False)
-    period_id: Mapped[int] = mapped_column(ForeignKey("periods.id"), nullable=False)
+    period_id: Mapped[int | None] = mapped_column(ForeignKey("periods.id"))
     file_name: Mapped[str] = mapped_column(String(300), nullable=False)
     storage_path: Mapped[str | None] = mapped_column(String(500))
     status: Mapped[ImportStatus] = mapped_column(
@@ -48,3 +49,6 @@ class FinancialImport(Base):
     company: Mapped["Company"] = relationship(back_populates="imports")
     period: Mapped["Period"] = relationship(back_populates="imports")
     rows: Mapped[list["ImportRow"]] = relationship(back_populates="source_import")
+    statements: Mapped[list["ImportedStatement"]] = relationship(
+        back_populates="source_import", order_by="ImportedStatement.source_order"
+    )

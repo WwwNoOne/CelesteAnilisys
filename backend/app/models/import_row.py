@@ -10,6 +10,7 @@ from app.domain.enums import MatchType, RowClassification, RowStatus
 if TYPE_CHECKING:
     from app.models.account import Account
     from app.models.financial_import import FinancialImport
+    from app.models.imported_statement import ImportedStatement
 
 
 class ImportRow(Base):
@@ -19,8 +20,13 @@ class ImportRow(Base):
     source_import_id: Mapped[int] = mapped_column(
         ForeignKey("financial_imports.id"), nullable=False
     )
+    imported_statement_id: Mapped[int | None] = mapped_column(
+        ForeignKey("imported_statements.id")
+    )
     source_sheet: Mapped[str] = mapped_column(String(200), nullable=False)
     source_row: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_text_column: Mapped[int | None] = mapped_column(Integer)
+    source_amount_column: Mapped[int | None] = mapped_column(Integer)
     original_code: Mapped[str | None] = mapped_column(String(64))
     original_name: Mapped[str | None] = mapped_column(String(300))
     normalized_name: Mapped[str | None] = mapped_column(String(300))
@@ -43,4 +49,5 @@ class ImportRow(Base):
     ending_balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
 
     source_import: Mapped["FinancialImport"] = relationship(back_populates="rows")
+    imported_statement: Mapped["ImportedStatement | None"] = relationship(back_populates="rows")
     matched_account: Mapped["Account | None"] = relationship(back_populates="import_rows")

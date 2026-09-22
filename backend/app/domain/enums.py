@@ -79,3 +79,10 @@ class ImportStatus(StrEnum):
     APPROVED = "APPROVED"
     IMPORTED = "IMPORTED"
     FAILED = "FAILED"
+    DISCARDED = "DISCARDED"
+
+
+class StatementImportStatus(StrEnum):
+    PENDING_REVIEW = "PENDING_REVIEW"
+    APPROVED = "APPROVED"
+    DISCARDED = "DISCARDED"
