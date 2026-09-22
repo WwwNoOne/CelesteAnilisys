@@ -3,6 +3,7 @@
 venv/
 backend/.venv/
 node_modules/
+.worktrees/
 
 # Salidas de compilación y empaquetado
 build/
