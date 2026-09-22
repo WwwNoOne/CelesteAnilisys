@@ -13,6 +13,16 @@ El proyecto implementa el **Módulo 1: Ingesta y normalización de estados finan
 - Espacio de trabajo a pantalla completa con vista previa del Excel, lista de hojas, tabla navegable con números de fila originales y panel lateral de mapeo de cuentas e ignorado de filas.
 - Historial de importaciones por empresa en la sección `Archivos`.
 
+### Comparaciones
+
+1. Inicia la API y la aplicación.
+2. Entra a una empresa y abre **Comparaciones**.
+3. Selecciona Balance General o Estado de Resultados.
+4. Selecciona primero el período anterior y luego el posterior.
+5. Pulsa **Comparar** para ver totales, cuentas desplegables y variaciones.
+
+Solo aparecen estados aprobados con saldos guardados. Los períodos de distinta duración muestran una advertencia y no se ajustan automáticamente.
+
 ## Estructura
 
 ```text
