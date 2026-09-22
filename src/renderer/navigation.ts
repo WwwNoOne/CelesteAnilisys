@@ -24,3 +24,7 @@ export function parseImportIdFromPath(path: string): number | null {
   const match = path.match(/^\/imports\/(\d+)\/review$/);
   return match ? Number.parseInt(match[1], 10) : null;
 }
+
+export function showsGlobalContextControls(path: string): boolean {
+  return path !== '/comparisons' && path !== '/files';
+}

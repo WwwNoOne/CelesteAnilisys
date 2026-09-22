@@ -5,11 +5,17 @@ import { ContextHeader } from './components/ContextHeader';
 import { ImportWizard } from './components/imports/ImportWizard';
 import { Sidebar } from './components/Sidebar';
 import { CompaniesPage } from './pages/CompaniesPage';
+import { ComparisonPage } from './pages/ComparisonPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { FilesPage } from './pages/FilesPage';
 import { ImportReviewPage } from './pages/ImportReviewPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
-import { initialPath, isReviewPath, parseImportIdFromPath } from './navigation';
+import {
+  initialPath,
+  isReviewPath,
+  parseImportIdFromPath,
+  showsGlobalContextControls,
+} from './navigation';
 import './styles.css';
 
 function App() {
@@ -61,14 +67,21 @@ function App() {
     if (activePath === '/files') return <FilesPage company={company} onImport={() => setShowImport(true)} onOpenReview={(id) => setActivePath(`/imports/${id}/review`)} />;
     if (activePath === '/statements') return <PlaceholderPage title="Estados financieros" description="Aquí veremos balance general, estado de resultados y flujo de efectivo por período." />;
     if (activePath === '/analysis') return <PlaceholderPage title="Análisis" description="Aquí estarán los indicadores, ratios y análisis financiero de la empresa." />;
-    if (activePath === '/comparisons') return <PlaceholderPage title="Comparaciones" description="Compara años, meses y períodos cuando los datos estén disponibles." />;
+    if (activePath === '/comparisons') return <ComparisonPage company={company} onFiles={() => setActivePath('/files')} />;
     return <PlaceholderPage title="Configuración" description="Administra las preferencias y datos generales de esta empresa." />;
   }
 
   return <div className="app-shell">
     <Sidebar company={company} companies={companies} activePath={activePath} onNavigate={setActivePath} onCompanyChange={enterCompany} onNewCompany={leaveCompany} onAllCompanies={leaveCompany} />
     <main className="main-content">
-      <ContextHeader company={company} period={period} view={view} onPeriodChange={setPeriod} onViewChange={setView} />
+      <ContextHeader
+        company={company}
+        period={period}
+        view={view}
+        showControls={showsGlobalContextControls(activePath)}
+        onPeriodChange={setPeriod}
+        onViewChange={setView}
+      />
       {renderPage()}
     </main>
     {showImport && (

@@ -29,4 +29,12 @@ describe('menú lateral', () => {
     expect(parseImportIdFromPath('/imports/42/review')).toBe(42);
     expect(parseImportIdFromPath('/files')).toBeNull();
   });
+
+  it('oculta los controles globales en Comparaciones y Archivos', async () => {
+    const { showsGlobalContextControls } = await import('../../src/renderer/navigation');
+
+    expect(showsGlobalContextControls('/comparisons')).toBe(false);
+    expect(showsGlobalContextControls('/files')).toBe(false);
+    expect(showsGlobalContextControls('/dashboard')).toBe(true);
+  });
 });
