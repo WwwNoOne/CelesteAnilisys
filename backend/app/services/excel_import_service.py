@@ -6,24 +6,35 @@ from uuid import uuid4
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
-from app.domain.enums import CanonicalRole, ImportStatus, MatchType, RowClassification, RowStatus
+from app.domain.enums import (
+    CanonicalRole,
+    ImportStatus,
+    MatchType,
+    RowClassification,
+    RowStatus,
+    StatementImportStatus,
+)
 from app.importers.excel_reader import read_workbook
 from app.importers.header_detector import detect_header
 from app.importers.sheet_classifier import classify_sheet
-from app.models import AccountBalance, Company, FinancialImport, ImportRow, Period
+from app.models import (
+    AccountBalance,
+    Company,
+    FinancialImport,
+    ImportedStatement,
+    ImportRow,
+    Period,
+)
 from app.schemas.import_api import (
     PreviewResponse,
     SheetApprovalRequest,
     SheetApprovalResponse,
     SheetPreviewRow,
 )
-from app.services.account_extraction_service import extract_account_candidates
 from app.services.account_matching_service import AccountCatalog, match_account
 from app.services.accounting_validation_service import validate_import_accounting
-from app.services.period_detection_service import (
-    detect_period,
-    detect_sheet_temporal_info,
-)
+from app.services.period_detection_service import detect_sheet_temporal_info
+from app.services.sheet_statement_service import analyze_sheet
 from app.services.statement_duplicate_service import check_statement_duplicate
 
 IMPORT_STORAGE_DIR = Path("data/imports")
@@ -88,24 +99,42 @@ def analyze_import(db: Session, import_job: FinancialImport) -> FinancialImport:
     db.commit()
     try:
         workbook = read_workbook(Path(import_job.storage_path))
-        detection = detect_period(import_job.file_name, workbook.sheets)
-        import_job.detected_period_label = detection.label
-        import_job.detected_period_year = detection.year
-        import_job.detected_period_month = detection.month
-        import_job.period_source = detection.source
-        import_job.period_conflict = detection.conflict
-        import_job.detected_statement_type = detection.statement_type
-        import_job.detected_as_of_date = detection.as_of_date
-        import_job.detected_period_start = detection.period_start
-        import_job.detected_period_end = detection.period_end
-        import_job.detected_timeframe = detection.timeframe
-        import_job.period_validated = False
+        db.query(ImportRow).filter(ImportRow.source_import_id == import_job.id).delete()
+        db.query(ImportedStatement).filter(
+            ImportedStatement.source_import_id == import_job.id
+        ).delete()
         catalog = _catalog_for_company(db, import_job.company_id)
-        for sheet in workbook.sheets:
-            header = detect_header(sheet.rows)
-            if header.row_index is None:
+        valid_statements = 0
+        for source_order, sheet in enumerate(workbook.sheets):
+            decision = analyze_sheet(sheet, import_job.file_name)
+            statement = ImportedStatement(
+                source_import_id=import_job.id,
+                sheet_name=sheet.name,
+                source_order=source_order,
+                statement_type=decision.statement_type,
+                detection_confidence=decision.confidence,
+                status=(
+                    StatementImportStatus.PENDING_REVIEW
+                    if decision.valid
+                    else StatementImportStatus.DISCARDED
+                ),
+                discard_reason=decision.discard_reason,
+                detected_period_label=decision.period_label,
+                detected_period_year=decision.period_year,
+                detected_period_month=decision.period_month,
+                period_source=decision.period_source,
+                period_conflict=decision.period_conflict,
+                detected_as_of_date=decision.as_of_date,
+                detected_period_start=decision.period_start,
+                detected_period_end=decision.period_end,
+                detected_timeframe=decision.timeframe,
+            )
+            db.add(statement)
+            db.flush()
+            if not decision.valid:
                 continue
-            for candidate in extract_account_candidates(sheet, header):
+            valid_statements += 1
+            for candidate in decision.candidates:
                 if candidate.row_classification in (
                     RowClassification.ENCABEZADO,
                     RowClassification.NOTA,
@@ -133,8 +162,11 @@ def analyze_import(db: Session, import_job: FinancialImport) -> FinancialImport:
                 db.add(
                     ImportRow(
                         source_import_id=import_job.id,
+                        imported_statement_id=statement.id,
                         source_sheet=candidate.sheet,
                         source_row=candidate.excel_row,
+                        source_text_column=candidate.text_column,
+                        source_amount_column=candidate.amount_column,
                         original_code=candidate.code,
                         original_name=candidate.name,
                         normalized_name=candidate.normalized_name,
@@ -149,10 +181,14 @@ def analyze_import(db: Session, import_job: FinancialImport) -> FinancialImport:
                         ending_balance=candidate.ending_balance,
                     )
                 )
+            db.flush()
+            _refresh_statement_summary(statement, db)
 
         db.flush()
         _refresh_summary(import_job, db)
-        import_job.status = ImportStatus.READY_FOR_REVIEW
+        import_job.status = (
+            ImportStatus.READY_FOR_REVIEW if valid_statements else ImportStatus.DISCARDED
+        )
         db.commit()
     except Exception:
         db.rollback()
@@ -637,6 +673,24 @@ def _refresh_summary(import_job: FinancialImport, db: Session) -> None:
     import_job.unknown_rows = sum(row.status == RowStatus.UNKNOWN for row in rows)
     import_job.new_accounts = sum(row.status == RowStatus.NEW_ACCOUNT for row in rows)
     import_job.error_rows = sum(row.status == RowStatus.ERROR for row in rows)
+
+
+def _refresh_statement_summary(statement: ImportedStatement, db: Session) -> None:
+    rows = db.query(ImportRow).filter(ImportRow.imported_statement_id == statement.id).all()
+    statement.total_rows = len(rows)
+    statement.recognized_rows = sum(row.status == RowStatus.MATCHED for row in rows)
+    statement.review_rows = sum(
+        row.status
+        in {
+            RowStatus.NEEDS_REVIEW,
+            RowStatus.UNKNOWN,
+            RowStatus.NEW_ACCOUNT,
+            RowStatus.ERROR,
+        }
+        for row in rows
+    )
+    statement.unknown_rows = sum(row.status == RowStatus.UNKNOWN for row in rows)
+    statement.error_rows = sum(row.status == RowStatus.ERROR for row in rows)
 
 
 def _catalog_for_company(db: Session, company_id: int) -> AccountCatalog:

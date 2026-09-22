@@ -164,6 +164,10 @@ def test_report_layout_emits_two_lateral_candidates():
         ("Pasivo", Decimal("30000.00")),
     ]
     assert all(candidate.row_classification == RowClassification.CUENTA for candidate in result)
+    assert [(candidate.text_column, candidate.amount_column) for candidate in result] == [
+        (0, 2),
+        (3, 5),
+    ]
 
 
 def test_text_context_and_empty_rows_emit_no_candidates():

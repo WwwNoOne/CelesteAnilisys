@@ -76,6 +76,8 @@ class AccountCandidate:
     normalized_name: str
     sheet: str
     excel_row: int
+    text_column: int | None = None
+    amount_column: int | None = None
     context_codes: tuple[str, ...] = ()
     is_group: bool = False
     row_classification: RowClassification = RowClassification.CUENTA
@@ -142,6 +144,8 @@ def extract_account_candidates(
                     normalized_name=normalized,
                     sheet=sheet.name,
                     excel_row=actual_excel_row,
+                    text_column=block.get("account_name", block.get("code")),
+                    amount_column=_amount_column(row, block),
                     is_group=bool(code and not has_amount),
                     row_classification=classification,
                     opening_balance=opening_balance,
@@ -167,6 +171,8 @@ def _extract_report_candidates(sheet: SheetSnapshot) -> list[AccountCandidate]:
                     normalized_name=block.normalized_text,
                     sheet=sheet.name,
                     excel_row=row_index,
+                    text_column=block.text_column,
+                    amount_column=block.amount_column,
                     row_classification=detect_candidate_classification(
                         block.normalized_text,
                         has_amount=True,
@@ -175,6 +181,18 @@ def _extract_report_candidates(sheet: SheetSnapshot) -> list[AccountCandidate]:
                 )
             )
     return candidates
+
+
+def _amount_column(row: list[Any], block: dict[str, int]) -> int | None:
+    for field in ("ending_balance", "opening_balance", "debits", "credits"):
+        index = block.get(field)
+        if index is not None and index < len(row) and isinstance(row[index], Number) and not isinstance(row[index], bool):
+            return index
+    if "amount_start" in block and "amount_end" in block:
+        for index in range(block["amount_start"], min(block["amount_end"], len(row))):
+            if isinstance(row[index], Number) and not isinstance(row[index], bool):
+                return index
+    return None
 
 
 def _extract_amount(row: list[Any], block: dict[str, int], field_name: str) -> Decimal | None:
