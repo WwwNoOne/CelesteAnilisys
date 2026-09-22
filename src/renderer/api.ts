@@ -244,6 +244,85 @@ export function listCompanyImports(companyId: number): Promise<ImportResult[]> {
   return request<ImportResult[]>(`/api/companies/${companyId}/imports`);
 }
 
+export type ComparisonStatementType = 'BALANCE_GENERAL' | 'ESTADO_RESULTADOS';
+
+export type ComparisonStatement = {
+  period_id: number;
+  statement_type: ComparisonStatementType;
+  label: string;
+  as_of_date: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  duration_days: number | null;
+};
+
+export type ComparisonChangeStatus =
+  | 'CALCULATED'
+  | 'NEW'
+  | 'REMOVED'
+  | 'UNCHANGED'
+  | 'NO_BASE';
+
+export type ComparisonSource = {
+  import_id: number;
+  sheet_name: string;
+  source_row: number;
+};
+
+export type ComparisonRow = {
+  key: string;
+  account_id: number | null;
+  code: string | null;
+  name: string;
+  level: number;
+  base_value: number | null;
+  comparison_value: number | null;
+  absolute_change: number | null;
+  percentage_change: number | null;
+  change_status: ComparisonChangeStatus;
+  base_source: ComparisonSource | null;
+  comparison_source: ComparisonSource | null;
+  children: ComparisonRow[];
+  is_group?: boolean;
+};
+
+export type ComparisonRequest = {
+  statement_type: ComparisonStatementType;
+  base_period_id: number;
+  comparison_period_id: number;
+};
+
+export type ComparisonResult = {
+  statement_type: ComparisonStatementType;
+  base_statement: ComparisonStatement;
+  comparison_statement: ComparisonStatement;
+  warnings: string[];
+  groups: ComparisonRow[];
+};
+
+export function listComparisonStatements(
+  companyId: number,
+  statementType?: ComparisonStatementType,
+): Promise<ComparisonStatement[]> {
+  const query = statementType
+    ? `?statement_type=${encodeURIComponent(statementType)}`
+    : '';
+  return request<ComparisonStatement[]>(
+    `/api/companies/${companyId}/comparison-statements${query}`,
+  );
+}
+
+export function createComparison(
+  companyId: number,
+  payload: ComparisonRequest,
+): Promise<ComparisonResult> {
+  return request<ComparisonResult>(`/api/companies/${companyId}/comparisons`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function fileFromBase64(name: string, base64: string): File {
   const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
   return new File([bytes], name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
