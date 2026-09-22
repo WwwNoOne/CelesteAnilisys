@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db
 from app.domain.enums import RowStatus
 from app.models import FinancialImport, ImportRow
+from app.schemas.accounting_validation import AccountingValidationResponse
 from app.schemas.import_api import (
     ImportResponse,
     ImportRowsResponse,
@@ -14,7 +16,9 @@ from app.schemas.import_api import (
     SheetApprovalResponse,
     SheetsResponse,
 )
+from app.services.accounting_validation_service import validate_import_accounting
 from app.services.excel_import_service import (
+    AccountingValidationError,
     analyze_import,
     approve_import,
     approve_sheet,
@@ -26,6 +30,16 @@ from app.services.excel_import_service import (
 )
 
 router = APIRouter(prefix="/api/imports", tags=["imports"])
+
+
+@router.get("/{import_id}/accounting-validation", response_model=AccountingValidationResponse)
+def get_accounting_validation(
+    import_id: int,
+    db: Session = Depends(get_db),
+) -> AccountingValidationResponse:
+    if db.get(FinancialImport, import_id) is None:
+        raise HTTPException(status_code=404, detail="Importación no encontrada")
+    return validate_import_accounting(db, import_id)
 
 
 @router.delete("/{import_id}", status_code=204)
@@ -231,6 +245,14 @@ def approve_uploaded_import(import_id: int, db: Session = Depends(get_db)) -> Fi
         raise HTTPException(status_code=404, detail="Importación no encontrada")
     try:
         return approve_import(db, import_job)
+    except AccountingValidationError as error:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "ACCOUNTING_VALIDATION_FAILED",
+                "validation": jsonable_encoder(error.validation),
+            },
+        ) from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 

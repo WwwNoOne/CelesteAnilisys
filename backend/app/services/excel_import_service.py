@@ -19,6 +19,7 @@ from app.schemas.import_api import (
 )
 from app.services.account_extraction_service import extract_account_candidates
 from app.services.account_matching_service import AccountCatalog, match_account
+from app.services.accounting_validation_service import validate_import_accounting
 from app.services.period_detection_service import (
     detect_period,
     detect_sheet_temporal_info,
@@ -26,6 +27,12 @@ from app.services.period_detection_service import (
 from app.services.statement_duplicate_service import check_statement_duplicate
 
 IMPORT_STORAGE_DIR = Path("data/imports")
+
+
+class AccountingValidationError(ValueError):
+    def __init__(self, validation):
+        super().__init__("La validación contable tiene errores bloqueantes")
+        self.validation = validation
 
 
 def delete_pending_import(db: Session, import_job: FinancialImport) -> None:
@@ -496,6 +503,10 @@ def approve_import(db: Session, import_job: FinancialImport) -> FinancialImport:
     if missing_sheets:
         names = ", ".join(sorted(missing_sheets))
         raise ValueError(f"Faltan hojas por guardar antes de aprobar: {names}")
+
+    validation = validate_import_accounting(db, import_job.id)
+    if not validation.valid:
+        raise AccountingValidationError(validation)
 
     import_job.status = ImportStatus.APPROVED
     db.commit()

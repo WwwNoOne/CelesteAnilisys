@@ -213,8 +213,8 @@ def test_import_requires_every_account_sheet_to_be_approved_before_final_approva
     assert second_sheet.status_code == 200
 
     final_approval = client.post("/api/imports/80/approve")
-    assert final_approval.status_code == 200
-    assert final_approval.json()["status"] == "APPROVED"
+    assert final_approval.status_code == 422
+    assert final_approval.json()["detail"]["code"] == "ACCOUNTING_VALIDATION_FAILED"
 
 
 def test_approve_sheet_marks_explicit_total_as_authoritative():
