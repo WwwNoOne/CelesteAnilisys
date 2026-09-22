@@ -44,6 +44,7 @@ export function ComparisonPage({ company, onFiles }: ComparisonPageProps) {
     setBasePeriodId(null);
     setComparisonPeriodId(null);
     setResult(null);
+    setComparing(false);
 
     ensureCompany(company)
       .then(async (apiCompany) => {
@@ -80,6 +81,7 @@ export function ComparisonPage({ company, onFiles }: ComparisonPageProps) {
       setError('El período base debe ser anterior al período comparado.');
       return;
     }
+    const requestId = requestTrackerRef.current.begin();
     setComparing(true);
     setError(null);
     try {
@@ -88,11 +90,13 @@ export function ComparisonPage({ company, onFiles }: ComparisonPageProps) {
         base_period_id: baseStatement.period_id,
         comparison_period_id: comparisonStatement.period_id,
       });
-      setResult(nextResult);
+      if (requestTrackerRef.current.isCurrent(requestId)) setResult(nextResult);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No se pudo realizar la comparación.');
+      if (requestTrackerRef.current.isCurrent(requestId)) {
+        setError(reason instanceof Error ? reason.message : 'No se pudo realizar la comparación.');
+      }
     } finally {
-      setComparing(false);
+      if (requestTrackerRef.current.isCurrent(requestId)) setComparing(false);
     }
   }
 
