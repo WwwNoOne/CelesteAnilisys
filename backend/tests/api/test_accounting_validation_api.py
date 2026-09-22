@@ -2,8 +2,8 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.domain.enums import CanonicalRole, ImportStatus
-from app.models import Account, AccountBalance, FinancialImport
+from app.domain.enums import CanonicalRole, ImportStatus, RowClassification, RowStatus
+from app.models import Account, FinancialImport, ImportRow
 from tests.conftest import client, seed_test_db, test_engine
 
 
@@ -38,15 +38,14 @@ def seed_validation_import(
         session.add(account)
         session.flush()
         session.add(
-            AccountBalance(
-                company_id=1,
-                period_id=1,
-                account_id=account.id,
+            ImportRow(
                 source_import_id=import_id,
-                ending_balance=Decimal(value),
                 source_sheet="Balance",
                 source_row=offset,
-                is_authoritative=True,
+                matched_account_id=account.id,
+                ending_balance=Decimal(value),
+                status=RowStatus.MATCHED,
+                row_classification=RowClassification.CUENTA,
             )
         )
     session.commit()

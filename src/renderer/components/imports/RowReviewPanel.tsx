@@ -93,10 +93,7 @@ export function RowReviewPanel({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showNewAccountForm, setShowNewAccountForm] = useState(false);
-  const [newCode, setNewCode] = useState('');
   const [newName, setNewName] = useState('');
-  const [newStatement, setNewStatement] = useState('ESTADO_RESULTADOS');
-  const [newCategory, setNewCategory] = useState('Ingresos');
   const [error, setError] = useState('');
   const [canonicalRole, setCanonicalRole] = useState<CanonicalRole | ''>('');
   const [endingBalance, setEndingBalance] = useState('');
@@ -187,17 +184,18 @@ export function RowReviewPanel({
   }
 
   async function handleCreateAndAssign() {
-    if (!selectedRow?.import_row_id || !newCode.trim() || !newName.trim()) return;
+    if (!selectedRow?.import_row_id || !newName.trim() || !canonicalRole) return;
     setSaving(true);
     setError('');
     try {
       const created = await createCompanyAccount(
         companyId,
-        newCode.trim(),
         newName.trim(),
-        'ACTIVO',
-        newStatement,
-        newCategory,
+        undefined,
+        undefined,
+        undefined,
+        selectedRow.account_code ?? undefined,
+        canonicalRole,
       );
       await onMatch(selectedRow.import_row_id, created.id);
       setShowNewAccountForm(false);
@@ -275,22 +273,18 @@ export function RowReviewPanel({
 
         {/* Row classification picker */}
         <div className="classification-section">
-          <label className="field-label">Clasificación de la fila:</label>
-          <div className="classification-pill-group">
-            {CLASSIFICATION_OPTIONS.map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                className={`classification-pill ${
-                  currentClassification === opt.id ? 'active' : ''
-                }`}
-                disabled={saving}
-                onClick={() => void handleClassificationChange(opt.id)}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          <label className="field-label">
+            Tipo de fila
+            <select
+              value={currentClassification}
+              disabled={saving}
+              onChange={(event) => void handleClassificationChange(event.target.value)}
+            >
+              {CLASSIFICATION_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>{opt.label}</option>
+              ))}
+            </select>
+          </label>
         </div>
 
         {error && <p className="form-error" role="alert">{error}</p>}
@@ -398,11 +392,7 @@ export function RowReviewPanel({
                     type="button"
                     className="link-button"
                     onClick={() => {
-                      setNewCode(selectedRow.account_code ?? '');
                       setNewName(selectedRow.account_name ?? '');
-                      setNewStatement(
-                        selectedStatement !== 'ALL' ? selectedStatement : 'ESTADO_RESULTADOS',
-                      );
                       setShowNewAccountForm(true);
                     }}
                   >
@@ -455,11 +445,7 @@ export function RowReviewPanel({
                 type="button"
                 className="tertiary-button"
                 onClick={() => {
-                  setNewCode(selectedRow.account_code ?? '');
                   setNewName(selectedRow.account_name ?? '');
-                  setNewStatement(
-                    selectedStatement !== 'ALL' ? selectedStatement : 'ESTADO_RESULTADOS',
-                  );
                   setShowNewAccountForm(true);
                 }}
               >
@@ -472,14 +458,10 @@ export function RowReviewPanel({
         {showNewAccountForm && (
           <div className="new-account-form">
             <h4>Nueva cuenta en catálogo</h4>
-            <label className="field-label">
-              Código contable
-              <input
-                value={newCode}
-                placeholder="Ej. 510103"
-                onChange={(e) => setNewCode(e.target.value)}
-              />
-            </label>
+            <p className="new-account-hint">
+              El código se genera automáticamente según el rol canónico seleccionado
+              ({canonicalRole ? canonicalRole.replaceAll('_', ' ') : 'selecciona un rol'}).
+            </p>
             <label className="field-label">
               Nombre de cuenta
               <input
@@ -488,40 +470,11 @@ export function RowReviewPanel({
                 onChange={(e) => setNewName(e.target.value)}
               />
             </label>
-            <label className="field-label">
-              Estado financiero
-              <select
-                value={newStatement}
-                onChange={(e) => {
-                  setNewStatement(e.target.value);
-                  const firstCat = CATEGORIES_BY_STATEMENT[e.target.value]?.[0] ?? 'General';
-                  setNewCategory(firstCat);
-                }}
-              >
-                <option value="BALANCE_GENERAL">Balance General</option>
-                <option value="ESTADO_RESULTADOS">Estado de Resultados</option>
-                <option value="FLUJO_EFECTIVO">Flujo de Efectivo</option>
-                <option value="AUXILIARES">Cuentas auxiliares/control</option>
-              </select>
-            </label>
-            <label className="field-label">
-              Categoría
-              <select
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-              >
-                {(CATEGORIES_BY_STATEMENT[newStatement] ?? ['General']).map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-            </label>
             <div className="panel-button-stack">
               <button
                 type="button"
                 className="primary-button"
-                disabled={saving || !newCode.trim() || !newName.trim()}
+                disabled={saving || !newName.trim() || !canonicalRole}
                 onClick={() => void handleCreateAndAssign()}
               >
                 {saving ? 'Creando…' : 'Crear y asignar'}

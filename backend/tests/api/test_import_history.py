@@ -100,6 +100,6 @@ def test_delete_import_rejects_approved_financial_statement():
     res = client.delete("/api/imports/61")
 
     assert res.status_code == 422
-    assert res.json()["detail"] == "Solo se pueden eliminar importaciones pendientes de revisión"
+    assert res.json()["detail"] == "No se pueden eliminar importaciones ya cargadas"
     with Session(test_engine) as session:
         assert session.get(FinancialImport, 61) is not None

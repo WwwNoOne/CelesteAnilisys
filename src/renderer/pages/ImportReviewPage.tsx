@@ -61,7 +61,7 @@ export function ImportReviewPage({
 
   async function refreshAccountingValidation() {
     const requestId = validationTracker.begin();
-    const validation = await getAccountingValidation(importId);
+    const validation = await getAccountingValidation(importId, sheetName);
     if (validationTracker.isCurrent(requestId)) {
       setAccountingValidation(validation);
     }
@@ -422,17 +422,23 @@ export function ImportReviewPage({
               {(() => {
                 const pendingCount =
                   preview?.row_details.filter(isPendingPreviewRow).length ?? 0;
+                const hasBlocking =
+                  accountingValidation?.rules.some(
+                    (rule) => rule.status === 'MISMATCH' || rule.status === 'DUPLICATE_CONFLICT',
+                  ) ?? false;
                 return (
                   <button
                     type="button"
                     className="primary-button small"
-                    disabled={approvingSheet || pendingCount > 0}
+                    disabled={approvingSheet || pendingCount > 0 || hasBlocking}
                     onClick={() => void handleApproveSheet(false)}
                   >
                     {approvingSheet
                       ? 'Guardando saldos…'
                       : pendingCount > 0
                       ? `Resolver ${pendingCount} fila(s) para aprobar`
+                      : hasBlocking
+                      ? 'Corrige la validación contable'
                       : 'Aprobar esta hoja y guardar saldos'}
                   </button>
                 );

@@ -124,10 +124,11 @@ def test_resolving_rows_reaches_accounting_validation_gate():
     )
     assert sheet_approval.status_code == 200
 
-    # Row review is complete, so the accounting validation is now the blocking gate.
+    # Row review is complete and there is no accounting conflict, so the final
+    # import can now be approved.
     res_approve = client.post("/api/imports/50/approve")
-    assert res_approve.status_code == 422
-    assert res_approve.json()["detail"]["code"] == "ACCOUNTING_VALIDATION_FAILED"
+    assert res_approve.status_code == 200
+    assert res_approve.json()["status"] == "APPROVED"
 
 
 def test_classify_row_as_subtotal_or_header_resolves_row():

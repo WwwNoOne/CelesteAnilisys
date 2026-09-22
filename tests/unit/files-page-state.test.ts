@@ -35,12 +35,14 @@ describe('files page state and history', () => {
     expect(totalPendingReview).toBe(15);
   });
 
-  it('allows deletion only while an import is pending review', () => {
+  it('allows deletion except for already-loaded imports', () => {
     expect(canDeleteImport('READY_FOR_REVIEW')).toBe(true);
+    expect(canDeleteImport('UPLOADED')).toBe(true);
+    expect(canDeleteImport('ANALYZING')).toBe(true);
+    expect(canDeleteImport('FAILED')).toBe(true);
+    expect(canDeleteImport('DISCARDED')).toBe(true);
     expect(canDeleteImport('APPROVED')).toBe(false);
-    expect(canDeleteImport('UPLOADED')).toBe(false);
-    expect(canDeleteImport('ANALYZING')).toBe(false);
-    expect(canDeleteImport('FAILED')).toBe(false);
+    expect(canDeleteImport('IMPORTED')).toBe(false);
   });
 
   it('accepts a successful delete response without a JSON body', async () => {

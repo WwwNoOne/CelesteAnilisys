@@ -2,9 +2,70 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from app.domain.enums import AccountType, FinancialStatement
+from app.domain.enums import AccountType, CanonicalRole, FinancialStatement
 from app.models import Account
 from app.normalizers.text_normalizer import normalize_account_name
+
+ACCOUNT_TYPE_PREFIX: dict[AccountType, str] = {
+    AccountType.ACTIVO: "1",
+    AccountType.PASIVO: "2",
+    AccountType.PATRIMONIO: "3",
+    AccountType.INGRESO: "4",
+    AccountType.COSTO: "5",
+    AccountType.GASTO: "6",
+    AccountType.OTRO: "9",
+}
+
+CANONICAL_ROLE_TO_ACCOUNT_TYPE: dict[CanonicalRole, AccountType] = {
+    CanonicalRole.ACTIVO: AccountType.ACTIVO,
+    CanonicalRole.PASIVO: AccountType.PASIVO,
+    CanonicalRole.PATRIMONIO: AccountType.PATRIMONIO,
+    CanonicalRole.VENTAS: AccountType.INGRESO,
+    CanonicalRole.COSTO_VENTAS: AccountType.COSTO,
+    CanonicalRole.UTILIDAD_BRUTA: AccountType.INGRESO,
+    CanonicalRole.GASTOS: AccountType.GASTO,
+    CanonicalRole.IMPUESTOS: AccountType.GASTO,
+    CanonicalRole.RESULTADO_EJERCICIO: AccountType.PATRIMONIO,
+}
+
+
+def account_type_for_role(role: CanonicalRole | None) -> AccountType:
+    if role is None:
+        return AccountType.OTRO
+    return CANONICAL_ROLE_TO_ACCOUNT_TYPE.get(role, AccountType.OTRO)
+
+
+def generate_account_code(db: Session, company_id: int, account_type: AccountType) -> str:
+    prefix = ACCOUNT_TYPE_PREFIX.get(account_type, "9")
+    existing = db.query(Account.code).filter(
+        Account.company_id == company_id,
+        Account.code.like(f"{prefix}%"),
+    ).all()
+    max_num = 0
+    for (code,) in existing:
+        suffix = code[len(prefix):]
+        if suffix.isdigit():
+            max_num = max(max_num, int(suffix))
+    return f"{prefix}{max_num + 1:03d}"
+
+
+def derive_account_hierarchy(code: str | None) -> tuple[str | None, int]:
+    """Derive the parent code and nesting level from a hierarchical account code.
+
+    Account codes use fixed 2-digit segments after the leading digit(s), e.g.
+    ``1`` -> ``11`` -> ``1101`` -> ``110102`` -> ``11010201``.
+    """
+    if not code or not code.strip():
+        return None, 1
+    code = code.strip()
+    if len(code) >= 3:
+        parent = code[:-2]
+    elif len(code) == 2:
+        parent = code[0]
+    else:
+        parent = None
+    level = len(code) // 2 + 1 if len(code) % 2 == 0 else (len(code) + 1) // 2
+    return parent or None, level
 
 
 @dataclass(slots=True)

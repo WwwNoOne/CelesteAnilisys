@@ -156,8 +156,9 @@ export function getImportIssues(importId: number): Promise<{ rows: ImportIssue[]
   return request(`/api/imports/${importId}/issues`);
 }
 
-export function getAccountingValidation(importId: number) {
-  return request<AccountingValidationResponse>(`/api/imports/${importId}/accounting-validation`);
+export function getAccountingValidation(importId: number, sheetName?: string) {
+  const qs = sheetName ? `?sheet_name=${encodeURIComponent(sheetName)}` : '';
+  return request<AccountingValidationResponse>(`/api/imports/${importId}/accounting-validation${qs}`);
 }
 
 export function getSheetPreview(importId: number, sheetName: string, limit = 200): Promise<ImportPreview> {
@@ -193,21 +194,23 @@ export function searchCompanyAccounts(
 
 export function createCompanyAccount(
   companyId: number,
-  code: string,
   name: string,
   accountType = 'ACTIVO',
   statement?: string,
   category?: string,
+  code?: string,
+  canonicalRole?: CanonicalRole,
 ): Promise<ApiAccount> {
   return request<ApiAccount>(`/api/companies/${companyId}/accounts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      code,
       name,
+      code,
       account_type: accountType,
       statement,
       category,
+      canonical_role: canonicalRole,
     }),
   });
 }

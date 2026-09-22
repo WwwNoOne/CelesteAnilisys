@@ -3,7 +3,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.domain.enums import CanonicalRole, ValidationStatus
-from app.models import Account, AccountBalance, FinancialImport, ImportRow
+from app.models import Account, FinancialImport, ImportRow
 from app.schemas.accounting_validation import (
     AccountingComponent,
     AccountingRuleResult,
@@ -53,6 +53,13 @@ def _rule(
         difference=difference,
         row_ids=row_ids,
         sources=sources,
+    )
+
+
+def has_blocking_rules(validation: AccountingValidationResponse) -> bool:
+    return any(
+        rule.status in (ValidationStatus.MISMATCH, ValidationStatus.DUPLICATE_CONFLICT)
+        for rule in validation.rules
     )
 
 
@@ -117,64 +124,56 @@ def validate_income_statement_equations(
 def validate_import_accounting(
     db: Session,
     import_id: int,
+    sheet_name: str | None = None,
 ) -> AccountingValidationResponse:
     import_job = db.get(FinancialImport, import_id)
     if import_job is None:
         raise ValueError("Importación no encontrada")
 
-    balances = (
-        db.query(AccountBalance, Account)
-        .join(Account, AccountBalance.account_id == Account.id)
+    rows = (
+        db.query(ImportRow, Account)
+        .join(Account, ImportRow.matched_account_id == Account.id)
         .filter(
-            AccountBalance.source_import_id == import_id,
-            AccountBalance.company_id == import_job.company_id,
-            Account.company_id == import_job.company_id,
+            ImportRow.source_import_id == import_id,
             Account.canonical_role.is_not(None),
         )
-        .order_by(AccountBalance.period_id, AccountBalance.source_sheet, AccountBalance.source_row)
-        .all()
     )
-    groups: dict[tuple[int, str], list[tuple[AccountBalance, Account]]] = {}
-    for balance, account in balances:
-        groups.setdefault((balance.period_id, balance.source_sheet), []).append((balance, account))
+    if sheet_name is not None:
+        rows = rows.filter(ImportRow.source_sheet == sheet_name)
+    rows = rows.order_by(ImportRow.source_sheet, ImportRow.source_row, ImportRow.id).all()
+
+    groups: dict[str, list[tuple[ImportRow, Account]]] = {}
+    for row, account in rows:
+        groups.setdefault(row.source_sheet, []).append((row, account))
 
     rules: list[AccountingRuleResult] = []
     balance_roles = {CanonicalRole.ACTIVO, CanonicalRole.PASIVO, CanonicalRole.PATRIMONIO}
     income_roles = set(CanonicalRole) - balance_roles
+
     for group_rows in groups.values():
         components: dict[CanonicalRole, AccountingComponent] = {}
         sources_by_role: dict[CanonicalRole, list[AccountingSource]] = {}
-        for balance, account in group_rows:
+        for row, account in group_rows:
             role = account.canonical_role
-            if role is None or balance.ending_balance is None:
+            if role is None or row.ending_balance is None:
                 continue
-            import_row = (
-                db.query(ImportRow)
-                .filter(
-                    ImportRow.source_import_id == import_id,
-                    ImportRow.source_sheet == balance.source_sheet,
-                    ImportRow.source_row == balance.source_row,
-                    ImportRow.matched_account_id == account.id,
-                )
-                .first()
-            )
             source = AccountingSource(
                 account_id=account.id,
                 account_code=account.code,
                 account_name=account.name,
                 canonical_role=role,
-                value=balance.ending_balance,
-                sheet=balance.source_sheet,
-                source_row=balance.source_row,
-                row_id=import_row.id if import_row else None,
+                value=row.ending_balance,
+                sheet=row.source_sheet,
+                source_row=row.source_row,
+                row_id=row.id,
             )
             sources_by_role.setdefault(role, []).append(source)
             if role not in components:
                 components[role] = AccountingComponent(
-                    value=balance.ending_balance,
-                    row_ids=[import_row.id] if import_row else [],
+                    value=row.ending_balance,
+                    row_ids=[row.id],
                     sources=[source],
-                    explicit=balance.is_authoritative,
+                    explicit=True,
                 )
 
         for role, role_sources in sources_by_role.items():

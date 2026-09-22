@@ -16,7 +16,10 @@ from app.schemas.company_api import (
 )
 from app.schemas.import_api import ImportResponse
 from app.services.catalog_hierarchy_service import (
+    account_type_for_role,
+    derive_account_hierarchy,
     ensure_company_standard_catalog,
+    generate_account_code,
     get_account_hierarchy_info,
 )
 
@@ -124,15 +127,27 @@ def create_company_account(
 ) -> AccountResponse:
     if db.get(Company, company_id) is None:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
-    code = payload.code.strip()
     name = payload.name.strip()
-    if not code or not name:
-        raise HTTPException(status_code=400, detail="Código y nombre son obligatorios")
-    acc_type = (
-        AccountType(payload.account_type)
-        if payload.account_type in AccountType.__members__
-        else AccountType.ACTIVO
-    )
+    if not name:
+        raise HTTPException(status_code=400, detail="El nombre es obligatorio")
+
+    # Determine the account type: canonical role takes precedence, then the
+    # explicit account_type, otherwise default to ACTIVO.
+    if payload.canonical_role is not None:
+        acc_type = account_type_for_role(payload.canonical_role)
+    else:
+        acc_type = (
+            AccountType(payload.account_type)
+            if payload.account_type in AccountType.__members__
+            else AccountType.ACTIVO
+        )
+
+    code = (payload.code or "").strip()
+    if not code:
+        code = generate_account_code(db, company_id, acc_type)
+
+    parent_code, level = derive_account_hierarchy(code)
+
     account = Account(
         company_id=company_id,
         code=code,
@@ -140,6 +155,8 @@ def create_company_account(
         normalized_name=normalize_account_name(name),
         account_type=acc_type,
         canonical_role=payload.canonical_role,
+        parent_code=parent_code,
+        level=level,
     )
     db.add(account)
     db.commit()

@@ -13,6 +13,7 @@ from app.domain.enums import (
     RowClassification,
     RowStatus,
     StatementImportStatus,
+    ValidationStatus,
 )
 from app.importers.excel_reader import read_workbook
 from app.models import (
@@ -31,7 +32,10 @@ from app.schemas.import_api import (
     SheetPreviewRow,
 )
 from app.services.account_matching_service import AccountCatalog, match_account
-from app.services.accounting_validation_service import validate_import_accounting
+from app.services.accounting_validation_service import (
+    has_blocking_rules,
+    validate_import_accounting,
+)
 from app.services.period_detection_service import detect_sheet_temporal_info
 from app.services.sheet_statement_service import analyze_sheet
 from app.services.statement_duplicate_service import check_statement_duplicate
@@ -46,8 +50,8 @@ class AccountingValidationError(ValueError):
 
 
 def delete_pending_import(db: Session, import_job: FinancialImport) -> None:
-    if import_job.status != ImportStatus.READY_FOR_REVIEW:
-        raise ValueError("Solo se pueden eliminar importaciones pendientes de revisión")
+    if import_job.status in (ImportStatus.APPROVED, ImportStatus.IMPORTED):
+        raise ValueError("No se pueden eliminar importaciones ya cargadas")
 
     storage_path = Path(import_job.storage_path) if import_job.storage_path else None
     db.query(AccountBalance).filter(
@@ -55,6 +59,9 @@ def delete_pending_import(db: Session, import_job: FinancialImport) -> None:
     ).delete(synchronize_session=False)
     db.query(ImportRow).filter(
         ImportRow.source_import_id == import_job.id
+    ).delete(synchronize_session=False)
+    db.query(ImportedStatement).filter(
+        ImportedStatement.source_import_id == import_job.id
     ).delete(synchronize_session=False)
     db.delete(import_job)
     db.commit()
@@ -438,6 +445,17 @@ def approve_sheet(
             f"La hoja '{sheet_name}' tiene {len(blocking)} fila(s) contable(s) pendiente(s) de revisión"
         )
 
+    accounting = validate_import_accounting(db, import_job.id, sheet_name=sheet_name)
+    if has_blocking_rules(accounting):
+        invalid_labels = [
+            f"{rule.label} ({rule.status.value})"
+            for rule in accounting.rules
+            if rule.status in (ValidationStatus.MISMATCH, ValidationStatus.DUPLICATE_CONFLICT)
+        ]
+        raise ValueError(
+            "La hoja no cuadra contablemente: " + "; ".join(invalid_labels)
+        )
+
     temporal: dict = {}
     if import_job.storage_path and Path(import_job.storage_path).exists():
         try:
@@ -575,7 +593,7 @@ def approve_import(db: Session, import_job: FinancialImport) -> FinancialImport:
         raise ValueError(f"Faltan hojas por guardar antes de aprobar: {names}")
 
     validation = validate_import_accounting(db, import_job.id)
-    if not validation.valid:
+    if has_blocking_rules(validation):
         raise AccountingValidationError(validation)
 
     import_job.status = ImportStatus.APPROVED

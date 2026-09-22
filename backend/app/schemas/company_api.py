@@ -46,8 +46,8 @@ class AccountResponse(BaseModel):
 
 
 class AccountCreate(BaseModel):
-    code: str
     name: str
+    code: str | None = None
     account_type: str = "ACTIVO"
     canonical_role: CanonicalRole | None = None
     statement: str | None = None

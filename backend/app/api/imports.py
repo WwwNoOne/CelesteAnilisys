@@ -35,11 +35,12 @@ router = APIRouter(prefix="/api/imports", tags=["imports"])
 @router.get("/{import_id}/accounting-validation", response_model=AccountingValidationResponse)
 def get_accounting_validation(
     import_id: int,
+    sheet_name: str | None = None,
     db: Session = Depends(get_db),
 ) -> AccountingValidationResponse:
     if db.get(FinancialImport, import_id) is None:
         raise HTTPException(status_code=404, detail="Importación no encontrada")
-    return validate_import_accounting(db, import_id)
+    return validate_import_accounting(db, import_id, sheet_name=sheet_name)
 
 
 @router.delete("/{import_id}", status_code=204)

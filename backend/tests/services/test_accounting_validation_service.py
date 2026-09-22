@@ -3,8 +3,8 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.orm import Session
 
-from app.domain.enums import CanonicalRole, ValidationStatus
-from app.models import Account, AccountBalance, Company, FinancialImport, Period
+from app.domain.enums import CanonicalRole, RowClassification, RowStatus, ValidationStatus
+from app.models import Account, Company, FinancialImport, ImportRow, Period
 from app.schemas.accounting_validation import AccountingComponent
 from app.services.accounting_validation_service import (
     validate_balance_equation,
@@ -107,22 +107,21 @@ def test_import_validation_does_not_mix_companies_or_imports():
                 )
             )
         session.flush()
-        for account_id, company_id, period_id, import_id, value in (
-            (601, 1, 1, 60, "100"),
-            (602, 1, 1, 60, "40"),
-            (603, 1, 1, 60, "60"),
-            (611, 2, 2, 61, "999"),
+        for account_id, import_id, value in (
+            (601, 60, "100"),
+            (602, 60, "40"),
+            (603, 60, "60"),
+            (611, 61, "999"),
         ):
             session.add(
-                AccountBalance(
-                    company_id=company_id,
-                    period_id=period_id,
-                    account_id=account_id,
+                ImportRow(
                     source_import_id=import_id,
-                    ending_balance=Decimal(value),
                     source_sheet="Balance",
                     source_row=account_id,
-                    is_authoritative=True,
+                    matched_account_id=account_id,
+                    ending_balance=Decimal(value),
+                    status=RowStatus.MATCHED,
+                    row_classification=RowClassification.CUENTA,
                 )
             )
         session.commit()
@@ -159,15 +158,14 @@ def test_conflicting_declarations_for_one_role_block_validation():
             session.add(account)
             session.flush()
             session.add(
-                AccountBalance(
-                    company_id=1,
-                    period_id=1,
-                    account_id=account_id,
+                ImportRow(
                     source_import_id=62,
-                    ending_balance=Decimal(value),
                     source_sheet="Balance",
                     source_row=source_row,
-                    is_authoritative=True,
+                    matched_account_id=account_id,
+                    ending_balance=Decimal(value),
+                    status=RowStatus.MATCHED,
+                    row_classification=RowClassification.CUENTA,
                 )
             )
         session.commit()
