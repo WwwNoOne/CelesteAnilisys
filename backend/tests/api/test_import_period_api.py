@@ -59,7 +59,7 @@ def test_approve_rejects_unvalidated_or_conflicted_period():
     assert "período debe validarse" in response.json()["detail"]
 
 
-def test_real_workbook_with_multiple_sheet_years_detects_conflict():
+def test_real_workbook_with_multiple_sheet_years_analyzes_sheets_independently():
     response = client.post(
         "/api/imports",
         data={"company_id": "1", "period_id": "1"},
@@ -77,14 +77,13 @@ def test_real_workbook_with_multiple_sheet_years_detects_conflict():
     analyzed = client.post(f"/api/imports/{import_id}/analyze")
     assert analyzed.status_code == 200
     result = analyzed.json()
-    assert result["period_conflict"] is True
-    assert result["period_validated"] is False
+    assert result["status"] == "READY_FOR_REVIEW"
 
-    # Validation resolves conflict
-    patched = client.patch(
-        f"/api/imports/{import_id}/period",
-        json={"label": "2025", "year": 2025},
-    )
-    assert patched.status_code == 200
-    assert patched.json()["period_conflict"] is False
-    assert patched.json()["period_validated"] is True
+    sheets = client.get(f"/api/imports/{import_id}/sheets").json()["sheets"]
+    by_name = {s["sheet_name"]: s for s in sheets}
+
+    # Each sheet is analyzed as its own statement with its own cut-off date
+    assert by_name["2024"]["sheet_type"] == "ESTADO_SITUACION_FINANCIERA"
+    assert by_name["2024"]["as_of_date"] == "2024-12-31"
+    assert by_name["2025"]["sheet_type"] == "ESTADO_SITUACION_FINANCIERA"
+    assert by_name["2025"]["as_of_date"] == "2025-12-31"

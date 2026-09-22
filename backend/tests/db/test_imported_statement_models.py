@@ -57,7 +57,7 @@ def test_import_keeps_independent_statements_and_candidate_coordinates():
             source_text_column=0,
             source_amount_column=1,
             original_name="EFECTIVO",
-            ending_balance=Decimal("100"),
+            ending_balance=Decimal(100),
         )
         right = ImportRow(
             source_import_id=job.id,
@@ -67,7 +67,7 @@ def test_import_keeps_independent_statements_and_candidate_coordinates():
             source_text_column=4,
             source_amount_column=5,
             original_name="CUENTAS POR PAGAR",
-            ending_balance=Decimal("75"),
+            ending_balance=Decimal(75),
         )
         session.add_all([left, right])
         session.commit()
