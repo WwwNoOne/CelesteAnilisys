@@ -36,7 +36,7 @@ def test_preview_returns_rich_metadata_and_preserves_rows():
 
     assert data["sheet_name"] == "2025"
     assert "columns" in data
-    assert len(data["columns"]) > 0
+    assert data["columns"] == ["Cuenta", "Saldo"]
     assert "rows" in data
     assert len(data["rows"]) <= 50
     assert data["total_rows"] >= len(data["rows"])
@@ -44,12 +44,11 @@ def test_preview_returns_rich_metadata_and_preserves_rows():
     assert "row_details" in data
     assert len(data["row_details"]) == len(data["rows"])
 
-    # First row is source_row 1
-    assert data["row_details"][0]["source_row"] == 1
-    # Check that an extracted account row has status
+    # Each normalized row represents one extracted account line.
     matched_detail = next((r for r in data["row_details"] if r["account_name"]), None)
     assert matched_detail is not None
     assert matched_detail["status"] is not None
+    assert matched_detail["source_row"] >= 1
 
 
 def test_preview_returns_422_for_invalid_sheet():
@@ -71,7 +70,7 @@ def test_preview_returns_422_for_invalid_sheet():
     assert res.status_code == 422
 
 
-def test_preview_preserves_each_lateral_candidate_from_the_same_excel_row():
+def test_preview_renders_each_lateral_candidate_as_separate_line():
     response = client.post(
         "/api/imports",
         data={"company_id": "1", "period_id": "1"},
@@ -100,10 +99,10 @@ def test_preview_preserves_each_lateral_candidate_from_the_same_excel_row():
         counts[row.source_row] = counts.get(row.source_row, 0) + 1
     duplicated_source_row = next(row for row, count in counts.items() if count > 1)
 
-    # The extraction still keeps both lateral candidates in import_rows...
+    # The extraction keeps both lateral candidates in import_rows...
     assert counts[duplicated_source_row] > 1
 
-    # ...but the preview renders each physical Excel row exactly once.
+    # ...and the normalized preview renders each one as its own line.
     preview = client.get(f"/api/imports/{import_id}/sheets/2025/preview?limit=200").json()
     visible = [
         detail
@@ -111,4 +110,5 @@ def test_preview_preserves_each_lateral_candidate_from_the_same_excel_row():
         if detail["source_row"] == duplicated_source_row
     ]
 
-    assert len(visible) == 1
+    assert len(visible) == counts[duplicated_source_row]
+    assert len({detail["import_row_id"] for detail in visible}) == counts[duplicated_source_row]

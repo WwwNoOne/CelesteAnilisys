@@ -162,7 +162,11 @@ def _extract_report_candidates(sheet: SheetSnapshot) -> list[AccountCandidate]:
     candidates: list[AccountCandidate] = []
     for row_index, row in enumerate(sheet.rows, start=1):
         for block in extract_row_blocks(row):
-            if block.amount is None or is_metadata_or_signature(block.text):
+            if is_metadata_or_signature(block.text):
+                continue
+            has_amount = block.amount is not None
+            classification = detect_candidate_classification(block.normalized_text, has_amount)
+            if block.amount is None and classification == RowClassification.CUENTA:
                 continue
             candidates.append(
                 AccountCandidate(
@@ -173,10 +177,7 @@ def _extract_report_candidates(sheet: SheetSnapshot) -> list[AccountCandidate]:
                     excel_row=row_index,
                     text_column=block.text_column,
                     amount_column=block.amount_column,
-                    row_classification=detect_candidate_classification(
-                        block.normalized_text,
-                        has_amount=True,
-                    ),
+                    row_classification=classification,
                     ending_balance=block.amount,
                 )
             )

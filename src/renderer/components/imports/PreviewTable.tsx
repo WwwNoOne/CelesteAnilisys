@@ -26,6 +26,14 @@ const CLASSIFICATION_BADGES: Record<string, { label: string; badgeClass: string 
   IGNORAR: { label: 'Ignorada', badgeClass: 'badge-ignored' },
 };
 
+function formatAmount(value: string | number | null): string {
+  if (typeof value !== 'number') return value ?? '';
+  return Number(value).toLocaleString('es-SV', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export function PreviewTable({
   columns,
   rows,
@@ -44,13 +52,15 @@ export function PreviewTable({
 
   return (
     <div className="preview-table-container">
-      <table className="excel-preview-table">
+      <table className="excel-preview-table normalized-preview">
         <thead>
           <tr>
             <th className="excel-row-header-th">#</th>
-            <th className="excel-status-th">Estado / Tipo</th>
+            <th className="excel-status-th">Tipo</th>
             {columns.map((colName, index) => (
-              <th key={`${colName}-${index}`}>{colName}</th>
+              <th key={`${colName}-${index}`} className={index === columns.length - 1 ? 'th-amount' : ''}>
+                {colName}
+              </th>
             ))}
           </tr>
         </thead>
@@ -60,19 +70,44 @@ export function PreviewTable({
             const sourceRowNum = detail?.source_row ?? rowIndex + 1;
             const isSelected = detail?.import_row_id != null && detail.import_row_id === selectedRowId;
             const isInvalid = detail?.import_row_id != null && invalidRowIds.has(detail.import_row_id);
-            const isNonAccount = detail?.row_classification && detail.row_classification !== 'CUENTA';
+            const classification = detail?.row_classification ?? 'CUENTA';
+            const isHeader = classification === 'ENCABEZADO';
+            const isSubtotal = classification === 'SUBTOTAL';
+            const isTotal = classification === 'TOTAL';
+            const isNonAccount = classification !== 'CUENTA';
             const badgeInfo = isNonAccount
-              ? CLASSIFICATION_BADGES[detail.row_classification]
+              ? CLASSIFICATION_BADGES[classification]
               : detail?.status
               ? STATUS_LABELS[detail.status]
               : null;
+            const accountName = rowCells[0];
+            const balance = rowCells[1];
+
+            if (isHeader) {
+              return (
+                <tr
+                  key={`${sourceRowNum}-${detail?.import_row_id ?? rowIndex}`}
+                  className="preview-section-header-row"
+                >
+                  <td className="excel-row-number">{sourceRowNum}</td>
+                  <td className="excel-row-status">
+                    <span className="status-badge badge-header">Sección</span>
+                  </td>
+                  <td className="preview-section-header" colSpan={columns.length}>
+                    {accountName ?? ''}
+                  </td>
+                </tr>
+              );
+            }
 
             return (
               <tr
                 key={`${sourceRowNum}-${detail?.import_row_id ?? rowIndex}`}
                 className={`excel-preview-row ${isSelected ? 'row-selected' : ''} ${
                   detail?.import_row_id != null ? 'clickable-row' : ''
-                } ${isInvalid ? 'financial-row-invalid' : ''}`}
+                } ${isInvalid ? 'financial-row-invalid' : ''} ${
+                  isTotal ? 'preview-total-row' : isSubtotal ? 'preview-subtotal-row' : ''
+                }`}
                 onClick={() => {
                   if (detail && onSelectRow) {
                     onSelectRow(detail);
@@ -89,37 +124,8 @@ export function PreviewTable({
                     <span className="status-badge badge-neutral">—</span>
                   )}
                 </td>
-                {columns.map((_, colIndex) => {
-                  const cellValue = rowCells[colIndex];
-                  const isNumber = typeof cellValue === 'number';
-                  const isTextSource = detail?.source_text_column === colIndex;
-                  const isAmountSource = detail?.source_amount_column === colIndex;
-                  const formattedValue =
-                    isNumber
-                      ? Number(cellValue).toLocaleString('es-SV', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })
-                      : cellValue ?? '';
-
-                  return (
-                    <td
-                      key={colIndex}
-                      className={`${isNumber ? 'cell-number' : 'cell-text'} ${
-                        isTextSource ? 'cell-text-source' : ''
-                      } ${isAmountSource ? 'cell-amount-source' : ''}`}
-                      title={
-                        isTextSource
-                          ? 'Columna de texto de la cuenta'
-                          : isAmountSource
-                          ? 'Columna de importe'
-                          : String(cellValue ?? '')
-                      }
-                    >
-                      {formattedValue}
-                    </td>
-                  );
-                })}
+                <td className="cell-text preview-account-name">{accountName ?? ''}</td>
+                <td className="cell-number preview-account-balance">{formatAmount(balance)}</td>
               </tr>
             );
           })}

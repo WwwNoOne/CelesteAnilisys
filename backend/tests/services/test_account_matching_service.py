@@ -170,7 +170,7 @@ def test_report_layout_emits_two_lateral_candidates():
     ]
 
 
-def test_text_context_and_empty_rows_emit_no_candidates():
+def test_report_layout_emits_headers_and_skips_empty_rows():
     sheet = SheetSnapshot(
         name="Balance",
         rows=[["Activo", None, "Pasivo"], [None, None, None]],
@@ -181,5 +181,7 @@ def test_text_context_and_empty_rows_emit_no_candidates():
         HeaderDetection(row_index=-1, columns={}, confidence=0.5),
     )
 
-    assert result == []
+    assert [candidate.name for candidate in result] == ["Activo", "Pasivo"]
+    assert all(candidate.row_classification == RowClassification.ENCABEZADO for candidate in result)
+    assert all(candidate.ending_balance is None for candidate in result)
 from decimal import Decimal

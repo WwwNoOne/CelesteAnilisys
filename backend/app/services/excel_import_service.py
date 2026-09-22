@@ -245,13 +245,20 @@ def get_sheet_preview(
     db: Session | None = None,
     limit: int = 200,
 ) -> PreviewResponse:
-    workbook = read_workbook(Path(import_job.storage_path or ""))
-    sheet = next((item for item in workbook.sheets if item.name == sheet_name), None)
-    if sheet is None:
-        raise ValueError("Hoja no encontrada")
+    temporal_info: dict = {}
+    if import_job.storage_path and Path(import_job.storage_path).exists():
+        workbook = None
+        try:
+            workbook = read_workbook(Path(import_job.storage_path))
+        except (FileNotFoundError, ValueError, OSError):
+            workbook = None
+        if workbook is not None:
+            sheet = next((item for item in workbook.sheets if item.name == sheet_name), None)
+            if sheet is None:
+                raise ValueError("Hoja no encontrada")
+            temporal_info = detect_sheet_temporal_info(sheet)
 
-    temporal_info = detect_sheet_temporal_info(sheet)
-    import_rows_by_line: dict[int, list[ImportRow]] = {}
+    # Normalized report-form preview: one logical line per extracted account.
     if db is not None and import_job.id:
         rows = (
             db.query(ImportRow)
@@ -259,61 +266,48 @@ def get_sheet_preview(
                 ImportRow.source_import_id == import_job.id,
                 ImportRow.source_sheet == sheet_name,
             )
-            .order_by(ImportRow.source_row, ImportRow.id)
+            .order_by(
+                ImportRow.source_text_column,
+                ImportRow.source_row,
+                ImportRow.id,
+            )
             .all()
         )
-        for r in rows:
-            import_rows_by_line.setdefault(r.source_row, []).append(r)
+    else:
+        rows = []
 
-    max_cols = max((len(r) for r in sheet.rows[:limit]), default=0)
-    col_count = min(max(max_cols, 1), 26)
-    columns = [chr(65 + i) for i in range(col_count)]
-
+    columns = ["Cuenta", "Saldo"]
     raw_rows = []
     row_details = []
-    for line_num, r in enumerate(sheet.rows[:limit], start=1):
-        formatted_row = [value.isoformat() if hasattr(value, "isoformat") else value for value in r[:col_count]]
-        matched_rows = import_rows_by_line.get(line_num) or [None]
-        # A physical row renders exactly once; keep the first extracted account as the
-        # representative detail so dual-block rows don't duplicate the whole line.
-        matched_row = matched_rows[0]
-        raw_rows.append(formatted_row)
+    for r in rows[:limit]:
+        name = r.original_name or ""
+        raw_rows.append([name, r.ending_balance])
         row_details.append(
             SheetPreviewRow(
-                source_row=line_num,
-                cells=formatted_row,
-                import_row_id=matched_row.id if matched_row else None,
-                status=matched_row.status.value if matched_row else None,
-                account_code=matched_row.original_code if matched_row else None,
-                account_name=matched_row.original_name if matched_row else None,
-                row_classification=(
-                    matched_row.row_classification.value if matched_row else "CUENTA"
-                ),
+                source_row=r.source_row,
+                cells=[name, r.ending_balance],
+                import_row_id=r.id,
+                status=r.status.value,
+                account_code=r.original_code,
+                account_name=r.original_name,
+                row_classification=r.row_classification.value,
                 canonical_role=(
-                    matched_row.matched_account.canonical_role
-                    if matched_row and matched_row.matched_account
-                    else None
+                    r.matched_account.canonical_role if r.matched_account else None
                 ),
-                ending_balance=matched_row.ending_balance if matched_row else None,
-                source_text_column=(
-                    matched_row.source_text_column if matched_row else None
-                ),
-                source_amount_column=(
-                    matched_row.source_amount_column if matched_row else None
-                ),
+                ending_balance=r.ending_balance,
+                source_text_column=r.source_text_column,
+                source_amount_column=r.source_amount_column,
             )
         )
 
-    expanded_preview_truncated = len(raw_rows) > limit
-    raw_rows = raw_rows[:limit]
-    row_details = row_details[:limit]
+    total_rows = len(rows)
 
     return PreviewResponse(
         sheet_name=sheet_name,
         columns=columns,
         rows=raw_rows,
-        total_rows=len(sheet.rows),
-        truncated=len(sheet.rows) > limit or expanded_preview_truncated,
+        total_rows=total_rows,
+        truncated=total_rows > limit,
         row_details=row_details,
         as_of_date=temporal_info.get("as_of_date"),
         period_start=temporal_info.get("period_start"),

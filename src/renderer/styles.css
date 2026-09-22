@@ -302,3 +302,12 @@ button { cursor: pointer; }
 .discarded-list li { align-items: center; background: #f8fafc; border: 1px dashed #e2e8f0; border-radius: 8px; display: flex; gap: 12px; margin-bottom: 6px; padding: 10px 14px; }
 .discarded-sheet-name { color: #64748b; font-weight: 700; font-size: 12px; }
 .discarded-sheet-reason { color: #94a3b8; font-size: 11px; }
+
+/* Normalized report-form preview */
+.normalized-preview .th-amount { text-align: right; }
+.preview-section-header-row td { background: #eef3fb !important; border-bottom: 2px solid #d6e4f3; }
+.preview-section-header { color: #0350a7; font-size: 11px; font-weight: 800; letter-spacing: .5px; padding: 7px 10px; text-transform: uppercase; }
+.preview-account-name { font-weight: 600; }
+.preview-account-balance { min-width: 120px; }
+.preview-subtotal-row td { background: #f8fbff; font-weight: 700; }
+.preview-total-row td { background: #eef6ff; font-weight: 800; border-top: 2px solid #bcd7f5; border-bottom: 2px solid #bcd7f5; }

@@ -2,6 +2,7 @@ import shutil
 from decimal import Decimal
 from pathlib import Path
 
+from app.domain.enums import RowClassification
 from app.importers.excel_reader import read_workbook
 from app.importers.header_detector import detect_header
 from app.services.account_extraction_service import extract_account_candidates
@@ -22,4 +23,8 @@ def test_bengala_extracts_both_years_with_declared_lines(tmp_path: Path):
     by_name = {candidate.name: candidate for candidate in extracted["2024"]}
 
     assert by_name["INGRESOS POR SERVICIOS"].ending_balance == Decimal("12000.00")
-    assert all(candidate.ending_balance is not None for candidate in extracted["2024"])
+    assert all(
+        candidate.ending_balance is not None
+        for candidate in extracted["2024"]
+        if candidate.row_classification == RowClassification.CUENTA
+    )
