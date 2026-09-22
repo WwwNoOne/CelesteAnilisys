@@ -3,8 +3,11 @@ import {
   createCompanyAccount,
   searchCompanyAccounts,
   type ApiAccount,
+  type CanonicalRole,
+  type RowReviewPayload,
   type SheetPreviewRow,
 } from '../../api';
+import { buildFinancialLineUpdate } from '../../import-review-state';
 
 type RowReviewPanelProps = {
   companyId: number;
@@ -13,6 +16,7 @@ type RowReviewPanelProps = {
   onMatch: (rowId: number, accountId: number) => Promise<void>;
   onIgnore: (rowId: number) => Promise<void>;
   onClassify: (rowId: number, classification: string) => Promise<void>;
+  onUpdateFinancialLine: (rowId: number, payload: RowReviewPayload) => Promise<void>;
   onClose: () => void;
 };
 
@@ -47,6 +51,18 @@ const CLASSIFICATION_OPTIONS = [
   { id: 'IGNORAR', label: 'Ignorar' },
 ];
 
+const CANONICAL_ROLE_OPTIONS: CanonicalRole[] = [
+  'ACTIVO',
+  'PASIVO',
+  'PATRIMONIO',
+  'VENTAS',
+  'COSTO_VENTAS',
+  'UTILIDAD_BRUTA',
+  'GASTOS',
+  'IMPUESTOS',
+  'RESULTADO_EJERCICIO',
+];
+
 function defaultStatementForSheet(sheetType?: string): string {
   if (sheetType === 'ESTADO_RESULTADOS') return 'ESTADO_RESULTADOS';
   if (sheetType === 'ESTADO_SITUACION_FINANCIERA') return 'BALANCE_GENERAL';
@@ -61,6 +77,7 @@ export function RowReviewPanel({
   onMatch,
   onIgnore,
   onClassify,
+  onUpdateFinancialLine,
   onClose,
 }: RowReviewPanelProps) {
   const [selectedStatement, setSelectedStatement] = useState<string>('ALL');
@@ -76,6 +93,8 @@ export function RowReviewPanel({
   const [newStatement, setNewStatement] = useState('ESTADO_RESULTADOS');
   const [newCategory, setNewCategory] = useState('Ingresos');
   const [error, setError] = useState('');
+  const [canonicalRole, setCanonicalRole] = useState<CanonicalRole | ''>('');
+  const [endingBalance, setEndingBalance] = useState('');
 
   // Set initial statement filter prioritizing sheet type
   useEffect(() => {
@@ -89,6 +108,8 @@ export function RowReviewPanel({
     setQuery(selectedRow.account_name ?? '');
     setSelectedAccountId(null);
     setShowNewAccountForm(false);
+    setCanonicalRole(selectedRow.canonical_role ?? '');
+    setEndingBalance(selectedRow.ending_balance ?? '');
     setError('');
   }, [selectedRow]);
 
@@ -135,11 +156,24 @@ export function RowReviewPanel({
   }
 
   async function handleAssign() {
-    if (!selectedRow?.import_row_id || !selectedAccountId) return;
+    if (
+      !selectedRow?.import_row_id
+      || !selectedAccountId
+      || !canonicalRole
+      || endingBalance.trim() === ''
+    ) return;
     setSaving(true);
     setError('');
     try {
-      await onMatch(selectedRow.import_row_id, selectedAccountId);
+      await onUpdateFinancialLine(
+        selectedRow.import_row_id,
+        buildFinancialLineUpdate(
+          selectedAccountId,
+          currentClassification,
+          canonicalRole,
+          endingBalance.trim(),
+        ),
+      );
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Error al asignar cuenta');
     } finally {
@@ -185,7 +219,7 @@ export function RowReviewPanel({
   }
 
   const currentClassification = selectedRow.row_classification || 'CUENTA';
-  const isNonAccount = currentClassification !== 'CUENTA';
+  const isStructural = ['ENCABEZADO', 'NOTA', 'IGNORAR'].includes(currentClassification);
   const availableCategories =
     selectedStatement !== 'ALL' ? CATEGORIES_BY_STATEMENT[selectedStatement] ?? [] : [];
 
@@ -236,7 +270,7 @@ export function RowReviewPanel({
 
         {error && <p className="form-error" role="alert">{error}</p>}
 
-        {isNonAccount ? (
+        {isStructural ? (
           <div className="structural-row-notice">
             <span className="notice-icon">✓</span>
             <div>
@@ -250,6 +284,27 @@ export function RowReviewPanel({
         ) : (
           /* Account catalog searchable browser */
           <div className="account-mapping-section">
+            <label className="field-label">
+              Rol canónico
+              <select
+                value={canonicalRole}
+                onChange={(event) => setCanonicalRole(event.target.value as CanonicalRole)}
+              >
+                <option value="">Selecciona un rol</option>
+                {CANONICAL_ROLE_OPTIONS.map((role) => (
+                  <option key={role} value={role}>{role.replaceAll('_', ' ')}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field-label">
+              Saldo
+              <input
+                type="number"
+                step="0.01"
+                value={endingBalance}
+                onChange={(event) => setEndingBalance(event.target.value)}
+              />
+            </label>
             <div className="catalog-browser-header">
               <label className="field-label">Buscador en catálogo contable</label>
               {sheetType && (
@@ -360,10 +415,16 @@ export function RowReviewPanel({
               <button
                 type="button"
                 className="primary-button"
-                disabled={saving || !selectedAccountId || !selectedRow.import_row_id}
+                disabled={
+                  saving
+                  || !selectedAccountId
+                  || !selectedRow.import_row_id
+                  || !canonicalRole
+                  || endingBalance.trim() === ''
+                }
                 onClick={() => void handleAssign()}
               >
-                {saving ? 'Guardando…' : 'Asignar cuenta seleccionada'}
+                {saving ? 'Guardando…' : 'Guardar línea financiera'}
               </button>
               <button
                 type="button"

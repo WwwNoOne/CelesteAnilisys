@@ -217,6 +217,8 @@ def review_import_row(import_id: int, row_id: int, payload: RowReviewUpdate, db:
             payload.action,
             payload.account_id,
             payload.row_classification,
+            payload.canonical_role,
+            payload.ending_balance,
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error

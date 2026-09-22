@@ -46,6 +46,20 @@ export type SheetPreviewRow = {
   account_code: string | null;
   account_name: string | null;
   row_classification: string;
+  canonical_role: CanonicalRole | null;
+  ending_balance: string | null;
+};
+
+export type CanonicalRole = 'ACTIVO' | 'PASIVO' | 'PATRIMONIO'
+  | 'VENTAS' | 'COSTO_VENTAS' | 'UTILIDAD_BRUTA'
+  | 'GASTOS' | 'IMPUESTOS' | 'RESULTADO_EJERCICIO';
+
+export type RowReviewPayload = {
+  action: 'match' | 'ignore' | 'classify' | 'update_financial_line';
+  account_id?: number;
+  row_classification?: string;
+  canonical_role?: CanonicalRole;
+  ending_balance?: string;
 };
 
 export type ImportPreview = {
@@ -161,18 +175,12 @@ export function createCompanyAccount(
 export function reviewImportRow(
   importId: number,
   rowId: number,
-  action: 'match' | 'ignore' | 'classify',
-  accountId?: number,
-  rowClassification?: string,
+  payload: RowReviewPayload,
 ): Promise<ImportResult> {
   return request<ImportResult>(`/api/imports/${importId}/rows/${rowId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action,
-      account_id: accountId,
-      row_classification: rowClassification,
-    }),
+    body: JSON.stringify(payload),
   });
 }
 

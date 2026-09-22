@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { isReviewPath, parseImportIdFromPath } from '../../src/renderer/navigation';
-import { isPendingPreviewRow } from '../../src/renderer/import-review-state';
+import {
+  buildFinancialLineUpdate,
+  isPendingPreviewRow,
+} from '../../src/renderer/import-review-state';
 
 describe('import review state', () => {
   it('does not count visual rows without import_row_id', () => {
@@ -13,8 +16,14 @@ describe('import review state', () => {
         account_code: null,
         account_name: null,
         row_classification: 'CUENTA',
+        canonical_role: null,
+        ending_balance: null,
       }),
     ).toBe(false);
+  });
+
+  it('keeps explicit zero in correction payload', () => {
+    expect(buildFinancialLineUpdate(10, 'TOTAL', 'COSTO_VENTAS', '0').ending_balance).toBe('0');
   });
   it('identifies review path correctly', () => {
     expect(isReviewPath('/imports/12/review')).toBe(true);

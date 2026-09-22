@@ -1,11 +1,12 @@
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
-from app.domain.enums import ImportStatus, MatchType, RowClassification, RowStatus
+from app.domain.enums import CanonicalRole, ImportStatus, MatchType, RowClassification, RowStatus
 from app.importers.excel_reader import read_workbook
 from app.importers.header_detector import detect_header
 from app.importers.sheet_classifier import classify_sheet
@@ -227,6 +228,12 @@ def get_sheet_preview(
                 account_code=matched_row.original_code if matched_row else None,
                 account_name=matched_row.original_name if matched_row else None,
                 row_classification=matched_row.row_classification.value if matched_row else "CUENTA",
+                canonical_role=(
+                    matched_row.matched_account.canonical_role
+                    if matched_row and matched_row.matched_account
+                    else None
+                ),
+                ending_balance=matched_row.ending_balance if matched_row else None,
             )
         )
 
@@ -251,7 +258,9 @@ def review_row(
     row_id: int,
     action: str,
     account_id: int | None = None,
-    row_classification: str | None = None,
+    row_classification: RowClassification | None = None,
+    canonical_role: CanonicalRole | None = None,
+    ending_balance: Decimal | None = None,
 ) -> FinancialImport:
     from app.models import Account
 
@@ -261,7 +270,7 @@ def review_row(
 
     if action == "classify" and row_classification is not None:
         try:
-            rc = RowClassification(row_classification.upper())
+            rc = RowClassification(row_classification)
         except ValueError:
             raise ValueError(f"Clasificación no válida: {row_classification}")
         row.row_classification = rc
@@ -288,6 +297,31 @@ def review_row(
         row.status = RowStatus.IGNORED
         row.match_type = MatchType.NONE
         row.matched_account_id = None
+    elif action == "update_financial_line":
+        if (
+            account_id is None
+            or row_classification is None
+            or canonical_role is None
+            or ending_balance is None
+        ):
+            raise ValueError("Cuenta, clasificación, rol y saldo son obligatorios")
+        account = (
+            db.query(Account)
+            .filter(
+                Account.id == account_id,
+                Account.company_id == import_job.company_id,
+            )
+            .first()
+        )
+        if account is None:
+            raise ValueError("La cuenta indicada no pertenece a la empresa")
+        account.canonical_role = canonical_role
+        row.row_classification = row_classification
+        row.ending_balance = ending_balance
+        row.matched_account_id = account.id
+        row.match_type = MatchType.CODE_AND_NAME
+        row.confidence = 1
+        row.status = RowStatus.MATCHED
     elif action == "match" and account_id is not None:
         account = db.query(Account).filter(Account.id == account_id, Account.company_id == import_job.company_id).first()
         if account is None:

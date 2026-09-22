@@ -1,7 +1,10 @@
 from datetime import date
-from typing import Any
+from decimal import Decimal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
+
+from app.domain.enums import CanonicalRole, RowClassification
 
 
 class ImportResponse(BaseModel):
@@ -67,6 +70,8 @@ class SheetPreviewRow(BaseModel):
     account_code: str | None = None
     account_name: str | None = None
     row_classification: str = "CUENTA"
+    canonical_role: CanonicalRole | None = None
+    ending_balance: Decimal | None = None
 
 
 class PreviewResponse(BaseModel):
@@ -89,9 +94,11 @@ class ImportRowsResponse(BaseModel):
 
 
 class RowReviewUpdate(BaseModel):
-    action: str
+    action: Literal["match", "ignore", "classify", "update_financial_line"]
     account_id: int | None = None
-    row_classification: str | None = None
+    row_classification: RowClassification | None = None
+    canonical_role: CanonicalRole | None = None
+    ending_balance: Decimal | None = None
 
 
 class SheetApprovalRequest(BaseModel):

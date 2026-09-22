@@ -128,7 +128,10 @@ export function ImportReviewPage({
 
   async function handleMatch(rowId: number, accountId: number) {
     setError('');
-    const updatedJob = await reviewImportRow(importId, rowId, 'match', accountId);
+    const updatedJob = await reviewImportRow(importId, rowId, {
+      action: 'match',
+      account_id: accountId,
+    });
     setImportJob(updatedJob);
     // Reload preview to show updated row badge
     if (selectedSheet) {
@@ -143,7 +146,7 @@ export function ImportReviewPage({
 
   async function handleIgnore(rowId: number) {
     setError('');
-    const updatedJob = await reviewImportRow(importId, rowId, 'ignore');
+    const updatedJob = await reviewImportRow(importId, rowId, { action: 'ignore' });
     setImportJob(updatedJob);
     if (selectedSheet) {
       const updatedPreview = await getSheetPreview(importId, selectedSheet);
@@ -157,7 +160,10 @@ export function ImportReviewPage({
 
   async function handleClassify(rowId: number, classification: string) {
     setError('');
-    const updatedJob = await reviewImportRow(importId, rowId, 'classify', undefined, classification);
+    const updatedJob = await reviewImportRow(importId, rowId, {
+      action: 'classify',
+      row_classification: classification,
+    });
     setImportJob(updatedJob);
     if (selectedSheet) {
       const updatedPreview = await getSheetPreview(importId, selectedSheet);
@@ -166,6 +172,22 @@ export function ImportReviewPage({
       if (updatedRowDetail) {
         setSelectedRow(updatedRowDetail);
       }
+    }
+  }
+
+  async function handleUpdateFinancialLine(
+    rowId: number,
+    payload: Parameters<typeof reviewImportRow>[2],
+  ) {
+    setError('');
+    const updatedJob = await reviewImportRow(importId, rowId, payload);
+    setImportJob(updatedJob);
+    if (selectedSheet) {
+      const updatedPreview = await getSheetPreview(importId, selectedSheet);
+      setPreview(updatedPreview);
+      setSelectedRow(
+        updatedPreview.row_details.find((row) => row.import_row_id === rowId) ?? null,
+      );
     }
   }
 
@@ -426,6 +448,7 @@ export function ImportReviewPage({
           onMatch={handleMatch}
           onIgnore={handleIgnore}
           onClassify={handleClassify}
+          onUpdateFinancialLine={handleUpdateFinancialLine}
           onClose={() => setSelectedRow(null)}
         />
       </main>

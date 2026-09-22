@@ -1,6 +1,15 @@
+from decimal import Decimal
+
 from sqlalchemy.orm import Session
 
-from app.domain.enums import AccountType, ImportStatus, MatchType, RowStatus
+from app.domain.enums import (
+    AccountType,
+    CanonicalRole,
+    ImportStatus,
+    MatchType,
+    RowClassification,
+    RowStatus,
+)
 from app.models import Account, Company, FinancialImport, ImportRow
 from tests.conftest import client, seed_test_db, test_engine
 
@@ -143,3 +152,27 @@ def test_accounts_hierarchy_filter_by_statement():
         assert acc["statement"] == "ESTADO_RESULTADOS"
         assert "Estado de Resultados" in acc["hierarchy_path"]
         assert "category" in acc
+
+
+def test_updates_account_role_classification_and_zero():
+    response = client.patch(
+        "/api/imports/50/rows/202",
+        json={
+            "action": "update_financial_line",
+            "account_id": 101,
+            "row_classification": "TOTAL",
+            "canonical_role": "COSTO_VENTAS",
+            "ending_balance": "0.00",
+        },
+    )
+
+    assert response.status_code == 200
+    with Session(test_engine) as session:
+        row = session.get(ImportRow, 202)
+        account = session.get(Account, 101)
+
+    assert row is not None
+    assert row.ending_balance == Decimal("0.00")
+    assert row.row_classification == RowClassification.TOTAL
+    assert account is not None
+    assert account.canonical_role == CanonicalRole.COSTO_VENTAS
