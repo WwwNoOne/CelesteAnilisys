@@ -2,8 +2,8 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.domain.enums import CanonicalRole, ImportStatus, RowClassification, RowStatus
-from app.models import Account, FinancialImport, ImportRow
+from app.domain.enums import ImportStatus, RowClassification, RowStatus
+from app.models import FinancialImport, ImportRow
 from tests.conftest import client, seed_test_db, test_engine
 
 
@@ -11,11 +11,13 @@ def setup_function():
     seed_test_db()
 
 
-def seed_validation_import(
+def seed_sheet(
     session: Session,
     *,
     import_id: int,
-    values: dict[CanonicalRole, str],
+    lines: list[tuple[str, RowClassification, str | None]],
+    sheet: str = "BG",
+    approved: bool = True,
 ) -> None:
     job = FinancialImport(
         id=import_id,
@@ -24,57 +26,59 @@ def seed_validation_import(
         file_name=f"{import_id}.xlsx",
         status=ImportStatus.READY_FOR_REVIEW,
         period_validated=True,
-        approved_sheets=["Balance"],
+        approved_sheets=[sheet] if approved else [],
     )
     session.add(job)
-    for offset, (role, value) in enumerate(values.items(), start=1):
-        account = Account(
-            id=import_id * 10 + offset,
-            company_id=1,
-            code=f"{import_id}-{offset}",
-            name=role.value,
-            canonical_role=role,
-        )
-        session.add(account)
-        session.flush()
+    for source_row, (name, classification, balance) in enumerate(lines, start=6):
         session.add(
             ImportRow(
                 source_import_id=import_id,
-                source_sheet="Balance",
-                source_row=offset,
-                matched_account_id=account.id,
-                ending_balance=Decimal(value),
+                source_sheet=sheet,
+                source_row=source_row,
+                source_text_column=0,
+                original_name=name,
+                normalized_name=name.upper(),
                 status=RowStatus.MATCHED,
-                row_classification=RowClassification.CUENTA,
+                row_classification=classification,
+                ending_balance=Decimal(balance) if balance is not None else None,
             )
         )
     session.commit()
 
 
-def test_endpoint_returns_missing_roles():
+def test_endpoint_returns_mismatch_for_unbalanced_total():
     with Session(test_engine) as session:
-        seed_validation_import(
+        seed_sheet(
             session,
             import_id=90,
-            values={CanonicalRole.ACTIVO: "100", CanonicalRole.PASIVO: "40"},
+            lines=[
+                ("ACTIVOS", RowClassification.ENCABEZADO, None),
+                ("CORRIENTE", RowClassification.SUBTOTAL, "40"),
+                ("NO CORRIENTE", RowClassification.SUBTOTAL, "50"),
+                ("TOTAL ACTIVO", RowClassification.TOTAL, "100"),
+            ],
         )
 
     response = client.get("/api/imports/90/accounting-validation")
 
     assert response.status_code == 200
-    assert response.json()["rules"][0]["missing_roles"] == ["PATRIMONIO"]
+    total_rule = next(r for r in response.json()["rules"] if r["rule_id"].startswith("total_"))
+    assert total_rule["status"] == "MISMATCH"
+    assert Decimal(total_rule["left_value"]) == Decimal(100)
+    assert Decimal(total_rule["right_value"]) == Decimal(90)
 
 
 def test_approve_returns_structured_validation_failure():
     with Session(test_engine) as session:
-        seed_validation_import(
+        seed_sheet(
             session,
             import_id=91,
-            values={
-                CanonicalRole.ACTIVO: "100",
-                CanonicalRole.PASIVO: "40",
-                CanonicalRole.PATRIMONIO: "50",
-            },
+            lines=[
+                ("ACTIVOS", RowClassification.ENCABEZADO, None),
+                ("CORRIENTE", RowClassification.SUBTOTAL, "40"),
+                ("NO CORRIENTE", RowClassification.SUBTOTAL, "50"),
+                ("TOTAL ACTIVO", RowClassification.TOTAL, "100"),
+            ],
         )
 
     response = client.post("/api/imports/91/approve")
@@ -83,19 +87,20 @@ def test_approve_returns_structured_validation_failure():
     assert response.json()["detail"]["code"] == "ACCOUNTING_VALIDATION_FAILED"
 
 
-def test_approve_accepts_valid_income_statement_with_zero_tax():
+def test_approve_accepts_balanced_statement():
     with Session(test_engine) as session:
-        seed_validation_import(
+        seed_sheet(
             session,
             import_id=92,
-            values={
-                CanonicalRole.VENTAS: "150",
-                CanonicalRole.COSTO_VENTAS: "50",
-                CanonicalRole.UTILIDAD_BRUTA: "100",
-                CanonicalRole.GASTOS: "80",
-                CanonicalRole.IMPUESTOS: "0",
-                CanonicalRole.RESULTADO_EJERCICIO: "20",
-            },
+            lines=[
+                ("ACTIVOS", RowClassification.ENCABEZADO, None),
+                ("CORRIENTE", RowClassification.SUBTOTAL, "60"),
+                ("NO CORRIENTE", RowClassification.SUBTOTAL, "40"),
+                ("TOTAL ACTIVO", RowClassification.TOTAL, "100"),
+                ("PASIVOS", RowClassification.ENCABEZADO, None),
+                ("PASIVO CORRIENTE", RowClassification.SUBTOTAL, "100"),
+                ("TOTAL PASIVO y PATRIMONIO", RowClassification.TOTAL, "100"),
+            ],
         )
 
     response = client.post("/api/imports/92/approve")

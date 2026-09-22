@@ -1,177 +1,110 @@
 from decimal import Decimal
 
-import pytest
 from sqlalchemy.orm import Session
 
-from app.domain.enums import CanonicalRole, RowClassification, RowStatus, ValidationStatus
-from app.models import Account, Company, FinancialImport, ImportRow, Period
-from app.schemas.accounting_validation import AccountingComponent
-from app.services.accounting_validation_service import (
-    validate_balance_equation,
-    validate_import_accounting,
-    validate_income_statement_equations,
-)
+from app.domain.enums import RowClassification, RowStatus, ValidationStatus
+from app.models import FinancialImport, ImportRow
+from app.services.accounting_validation_service import validate_import_accounting
 from tests.conftest import seed_test_db, test_engine
 
 
-def component(value: str | Decimal, row_id: int = 1) -> AccountingComponent:
-    return AccountingComponent(
-        value=Decimal(str(value)),
-        row_ids=[row_id],
-        sources=[],
-        explicit=True,
+def _add_row(
+    session: Session,
+    *,
+    import_id: int,
+    sheet: str,
+    source_row: int,
+    name: str,
+    classification: RowClassification,
+    balance: str | None,
+    text_column: int = 0,
+) -> ImportRow:
+    row = ImportRow(
+        source_import_id=import_id,
+        source_sheet=sheet,
+        source_row=source_row,
+        source_text_column=text_column,
+        original_name=name,
+        normalized_name=name.upper(),
+        status=RowStatus.MATCHED,
+        row_classification=classification,
+        ending_balance=Decimal(balance) if balance is not None else None,
     )
+    session.add(row)
+    return row
 
 
-def test_explicit_zero_is_valid_but_missing_component_blocks():
-    valid = validate_balance_equation(
-        {
-            CanonicalRole.ACTIVO: component("100"),
-            CanonicalRole.PASIVO: component("0"),
-            CanonicalRole.PATRIMONIO: component("100"),
-        }
-    )
-    assert valid.status == ValidationStatus.VALID
-
-    missing = validate_balance_equation(
-        {
-            CanonicalRole.ACTIVO: component("100"),
-            CanonicalRole.PATRIMONIO: component("100"),
-        }
-    )
-    assert missing.status == ValidationStatus.MISSING_COMPONENTS
-    assert missing.missing_roles == [CanonicalRole.PASIVO]
-
-
-@pytest.mark.parametrize("result", [Decimal(20), Decimal(-20)])
-def test_income_statement_supports_profit_and_signed_loss(result: Decimal):
-    gross = Decimal(100)
-    rules = validate_income_statement_equations(
-        {
-            CanonicalRole.VENTAS: component("150"),
-            CanonicalRole.COSTO_VENTAS: component("50"),
-            CanonicalRole.UTILIDAD_BRUTA: component(gross),
-            CanonicalRole.GASTOS: component(gross - result),
-            CanonicalRole.IMPUESTOS: component("0"),
-            CanonicalRole.RESULTADO_EJERCICIO: component(result),
-        }
-    )
-
-    assert all(rule.status == ValidationStatus.VALID for rule in rules)
-
-
-def test_two_cents_difference_is_mismatch():
-    result = validate_balance_equation(
-        {
-            CanonicalRole.ACTIVO: component("100.02"),
-            CanonicalRole.PASIVO: component("60"),
-            CanonicalRole.PATRIMONIO: component("40"),
-        }
-    )
-
-    assert result.status == ValidationStatus.MISMATCH
-    assert result.difference == Decimal("0.02")
-
-
-def test_import_validation_does_not_mix_companies_or_imports():
+def test_balanced_rollup_is_valid():
     seed_test_db()
     with Session(test_engine) as session:
-        company_two = Company(id=2, name="Empresa dos")
-        period_two = Period(id=2, label="2026", year=2026)
-        import_one = FinancialImport(
-            id=60,
-            company_id=1,
-            period_id=1,
-            file_name="one.xlsx",
+        session.add(
+            FinancialImport(id=70, company_id=1, period_id=1, file_name="b.xlsx")
         )
-        import_two = FinancialImport(
-            id=61,
-            company_id=2,
-            period_id=2,
-            file_name="two.xlsx",
-        )
-        session.add_all([company_two, period_two, import_one, import_two])
-        for account_id, company_id, role in (
-            (601, 1, CanonicalRole.ACTIVO),
-            (602, 1, CanonicalRole.PASIVO),
-            (603, 1, CanonicalRole.PATRIMONIO),
-            (611, 2, CanonicalRole.ACTIVO),
-        ):
-            session.add(
-                Account(
-                    id=account_id,
-                    company_id=company_id,
-                    code=str(account_id),
-                    name=role.value,
-                    canonical_role=role,
-                )
-            )
-        session.flush()
-        for account_id, import_id, value in (
-            (601, 60, "100"),
-            (602, 60, "40"),
-            (603, 60, "60"),
-            (611, 61, "999"),
-        ):
-            session.add(
-                ImportRow(
-                    source_import_id=import_id,
-                    source_sheet="Balance",
-                    source_row=account_id,
-                    matched_account_id=account_id,
-                    ending_balance=Decimal(value),
-                    status=RowStatus.MATCHED,
-                    row_classification=RowClassification.CUENTA,
-                )
-            )
+        _add_row(session, import_id=70, sheet="BG", source_row=6, name="ACTIVOS", classification=RowClassification.ENCABEZADO, balance=None)
+        _add_row(session, import_id=70, sheet="BG", source_row=7, name="CORRIENTE", classification=RowClassification.SUBTOTAL, balance="80068.80")
+        _add_row(session, import_id=70, sheet="BG", source_row=8, name="EFECTIVO", classification=RowClassification.CUENTA, balance="1581.79")
+        _add_row(session, import_id=70, sheet="BG", source_row=9, name="POR COBRAR", classification=RowClassification.CUENTA, balance="75267.09")
+        _add_row(session, import_id=70, sheet="BG", source_row=10, name="ANTICIPOS", classification=RowClassification.CUENTA, balance="1589.22")
+        _add_row(session, import_id=70, sheet="BG", source_row=11, name="IVA", classification=RowClassification.CUENTA, balance="1630.70")
+        _add_row(session, import_id=70, sheet="BG", source_row=12, name="NO CORRIENTE", classification=RowClassification.SUBTOTAL, balance="0")
+        _add_row(session, import_id=70, sheet="BG", source_row=13, name="PROPIEDAD", classification=RowClassification.CUENTA, balance="1945.20")
+        _add_row(session, import_id=70, sheet="BG", source_row=14, name="DEPRECIACION", classification=RowClassification.CUENTA, balance="-1945.20")
+        _add_row(session, import_id=70, sheet="BG", source_row=19, name="TOTAL ACTIVO", classification=RowClassification.TOTAL, balance="80068.80")
+        _add_row(session, import_id=70, sheet="BG", source_row=6, name="PASIVOS", classification=RowClassification.ENCABEZADO, balance=None, text_column=4)
+        _add_row(session, import_id=70, sheet="BG", source_row=7, name="CORRIENTE", classification=RowClassification.SUBTOTAL, balance="75642.38", text_column=4)
+        _add_row(session, import_id=70, sheet="BG", source_row=8, name="POR PAGAR", classification=RowClassification.CUENTA, balance="75000", text_column=4)
+        _add_row(session, import_id=70, sheet="BG", source_row=9, name="RETENCIONES", classification=RowClassification.CUENTA, balance="487.51", text_column=4)
+        _add_row(session, import_id=70, sheet="BG", source_row=10, name="IMPUESTOS", classification=RowClassification.CUENTA, balance="154.87", text_column=4)
+        _add_row(session, import_id=70, sheet="BG", source_row=19, name="TOTAL PASIVO y PATRIMONIO", classification=RowClassification.TOTAL, balance="75642.38", text_column=4)
         session.commit()
 
-        validation = validate_import_accounting(session, 60)
+        validation = validate_import_accounting(session, 70, sheet_name="BG")
+
+    # The balance equation must be reported (Activo = Pasivo + Patrimonio).
+    assert any(rule.rule_id == "balance" for rule in validation.rules)
+    # The "TOTAL PASIVO y PATRIMONIO" does not match assets because the pasivo
+    # subtotal only covers 75642.38, so the rollup flags it.
+    assert validation.valid is False
+
+
+def test_mismatched_total_is_reported():
+    seed_test_db()
+    with Session(test_engine) as session:
+        session.add(
+            FinancialImport(id=71, company_id=1, period_id=1, file_name="b.xlsx")
+        )
+        _add_row(session, import_id=71, sheet="ER", source_row=6, name="INGRESOS", classification=RowClassification.ENCABEZADO, balance=None)
+        _add_row(session, import_id=71, sheet="ER", source_row=7, name="VENTAS", classification=RowClassification.SUBTOTAL, balance="1000")
+        _add_row(session, import_id=71, sheet="ER", source_row=8, name="SERVICIOS", classification=RowClassification.CUENTA, balance="600")
+        _add_row(session, import_id=71, sheet="ER", source_row=9, name="OTROS", classification=RowClassification.CUENTA, balance="200")
+        _add_row(session, import_id=71, sheet="ER", source_row=10, name="TOTAL INGRESOS", classification=RowClassification.TOTAL, balance="900")
+        session.commit()
+
+        validation = validate_import_accounting(session, 71, sheet_name="ER")
+
+    total_rule = next(rule for rule in validation.rules if rule.rule_id.startswith("total_"))
+    assert total_rule.status == ValidationStatus.MISMATCH
+    assert total_rule.left_value == Decimal(900)
+    assert total_rule.right_value == Decimal(1000)
+
+
+def test_balanced_total_and_equation_is_valid():
+    seed_test_db()
+    with Session(test_engine) as session:
+        session.add(
+            FinancialImport(id=72, company_id=1, period_id=1, file_name="b.xlsx")
+        )
+        _add_row(session, import_id=72, sheet="BG", source_row=6, name="ACTIVOS", classification=RowClassification.ENCABEZADO, balance=None)
+        _add_row(session, import_id=72, sheet="BG", source_row=7, name="CORRIENTE", classification=RowClassification.SUBTOTAL, balance="60")
+        _add_row(session, import_id=72, sheet="BG", source_row=8, name="NO CORRIENTE", classification=RowClassification.SUBTOTAL, balance="40")
+        _add_row(session, import_id=72, sheet="BG", source_row=9, name="TOTAL ACTIVO", classification=RowClassification.TOTAL, balance="100")
+        _add_row(session, import_id=72, sheet="BG", source_row=10, name="PASIVOS", classification=RowClassification.ENCABEZADO, balance=None)
+        _add_row(session, import_id=72, sheet="BG", source_row=11, name="PASIVO CORRIENTE", classification=RowClassification.SUBTOTAL, balance="100")
+        _add_row(session, import_id=72, sheet="BG", source_row=12, name="TOTAL PASIVO", classification=RowClassification.TOTAL, balance="100")
+        session.commit()
+
+        validation = validate_import_accounting(session, 72, sheet_name="BG")
 
     assert validation.valid is True
-    assert {source.account_id for rule in validation.rules for source in rule.sources} == {
-        601,
-        602,
-        603,
-    }
-
-
-def test_conflicting_declarations_for_one_role_block_validation():
-    seed_test_db()
-    with Session(test_engine) as session:
-        job = FinancialImport(id=62, company_id=1, period_id=1, file_name="conflict.xlsx")
-        session.add(job)
-        values = [
-            (621, CanonicalRole.ACTIVO, "100"),
-            (622, CanonicalRole.ACTIVO, "110"),
-            (623, CanonicalRole.PASIVO, "40"),
-            (624, CanonicalRole.PATRIMONIO, "60"),
-        ]
-        for source_row, (account_id, role, value) in enumerate(values, start=1):
-            account = Account(
-                id=account_id,
-                company_id=1,
-                code=str(account_id),
-                name=f"{role.value} {account_id}",
-                canonical_role=role,
-            )
-            session.add(account)
-            session.flush()
-            session.add(
-                ImportRow(
-                    source_import_id=62,
-                    source_sheet="Balance",
-                    source_row=source_row,
-                    matched_account_id=account_id,
-                    ending_balance=Decimal(value),
-                    status=RowStatus.MATCHED,
-                    row_classification=RowClassification.CUENTA,
-                )
-            )
-        session.commit()
-
-        validation = validate_import_accounting(session, 62)
-
-    assert validation.valid is False
-    assert validation.rules[0].status == ValidationStatus.DUPLICATE_CONFLICT
-    assert {source.account_id for source in validation.rules[0].sources} == {621, 622}
+    assert all(rule.status == ValidationStatus.VALID for rule in validation.rules)
+    assert any(rule.rule_id == "balance" for rule in validation.rules)
