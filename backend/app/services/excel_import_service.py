@@ -141,7 +141,7 @@ def analyze_import(db: Session, import_job: FinancialImport) -> FinancialImport:
                 continue
             valid_statements += 1
             for candidate in decision.candidates:
-                if candidate.row_classification in (
+                if candidate.is_generated or candidate.row_classification in (
                     RowClassification.ENCABEZADO,
                     RowClassification.NOTA,
                     RowClassification.IGNORAR,
@@ -185,6 +185,7 @@ def analyze_import(db: Session, import_job: FinancialImport) -> FinancialImport:
                         debits=candidate.debits,
                         credits=candidate.credits,
                         ending_balance=candidate.ending_balance,
+                        is_generated=candidate.is_generated,
                     )
                 )
             db.flush()
@@ -304,6 +305,7 @@ def get_sheet_preview(
                 ending_balance=r.ending_balance,
                 source_text_column=r.source_text_column,
                 source_amount_column=r.source_amount_column,
+                is_generated=r.is_generated,
             )
         )
 

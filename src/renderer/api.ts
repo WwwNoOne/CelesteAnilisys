@@ -57,6 +57,7 @@ export type SheetPreviewRow = {
   ending_balance: string | null;
   source_text_column: number | null;
   source_amount_column: number | null;
+  is_generated: boolean;
 };
 
 export type CanonicalRole = 'ACTIVO' | 'PASIVO' | 'PATRIMONIO'

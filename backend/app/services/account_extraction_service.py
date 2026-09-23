@@ -47,15 +47,20 @@ def detect_candidate_classification(normalized_name: str, has_amount: bool) -> R
 
     if normalized_name.startswith("SUBTOTAL ") or normalized_name in (
         "UTILIDAD BRUTA", "UTILIDAD DE OPERACION", "UTILIDAD DEL EJERCICIO",
-        "PERDIDA DEL EJERCICIO", "PERIDA DEL EJERCICO", "CORRIENTE", "NO CORRIENTE",
-        "NETO A PAGAR",
+        "PERDIDA DEL EJERCICIO", "PERIDA DEL EJERCICO", "RESULTADO DEL EJERCICIO",
+        "CORRIENTE", "NO CORRIENTE", "NETO A PAGAR",
+        "ACTIVO CORRIENTE", "ACTIVO NO CORRIENTE", "PASIVO CORRIENTE", "PASIVO NO CORRIENTE",
+        "PATRIMONIO",
     ):
         return RowClassification.SUBTOTAL
 
     if not has_amount and normalized_name in (
         "ACTIVO", "ACTIVOS", "PASIVO", "PASIVOS", "PATRIMONIO",
-        "INGRESOS DE OPERACION", "COSTO DE VENTAS", "GASTOS DE OPERACION",
+        "INGRESOS", "INGRESOS DE OPERACION", "COSTOS", "COSTO DE VENTAS",
+        "GASTOS", "GASTOS DE OPERACION", "GASTOS DE ADMINISTRACION", "GASTOS DE VENTAS",
         "CONCILIACION DE IMPUESTOS", "MENOS", "MAS",
+        "OPERACION", "ACTIVIDADES DE OPERACION", "INVERSION", "ACTIVIDADES DE INVERSION",
+        "FINANCIAMIENTO", "ACTIVIDADES DE FINANCIAMIENTO",
     ):
         return RowClassification.ENCABEZADO
 
@@ -85,6 +90,7 @@ class AccountCandidate:
     debits: Decimal | None = None
     credits: Decimal | None = None
     ending_balance: Decimal | None = None
+    is_generated: bool = False
 
 
 def extract_account_candidates(

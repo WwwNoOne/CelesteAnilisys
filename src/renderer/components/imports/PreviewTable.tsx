@@ -124,7 +124,14 @@ export function PreviewTable({
                     <span className="status-badge badge-neutral">—</span>
                   )}
                 </td>
-                <td className="cell-text preview-account-name">{accountName ?? ''}</td>
+                <td className="cell-text preview-account-name">
+                  {accountName ?? ''}
+                  {detail?.is_generated && (
+                    <span className="generated-tag" title="Subtotal generado automáticamente; edita su saldo">
+                      auto
+                    </span>
+                  )}
+                </td>
                 <td className="cell-number preview-account-balance">{formatAmount(balance)}</td>
               </tr>
             );

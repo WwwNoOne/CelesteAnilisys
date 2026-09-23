@@ -311,3 +311,4 @@ button { cursor: pointer; }
 .preview-account-balance { min-width: 120px; }
 .preview-subtotal-row td { background: #f8fbff; font-weight: 700; }
 .preview-total-row td { background: #eef6ff; font-weight: 800; border-top: 2px solid #bcd7f5; border-bottom: 2px solid #bcd7f5; }
+.generated-tag { background: #f1f5f9; border: 1px dashed #94a3b8; border-radius: 4px; color: #64748b; font-size: 8px; font-weight: 700; margin-left: 6px; padding: 1px 5px; text-transform: uppercase; vertical-align: middle; }

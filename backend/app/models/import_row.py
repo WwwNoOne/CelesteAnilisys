@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Enum, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Boolean, Enum, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -47,6 +47,7 @@ class ImportRow(Base):
     debits: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
     credits: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
     ending_balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    is_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     source_import: Mapped["FinancialImport"] = relationship(back_populates="rows")
     imported_statement: Mapped["ImportedStatement | None"] = relationship(back_populates="rows")

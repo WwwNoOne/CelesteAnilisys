@@ -81,6 +81,7 @@ class SheetPreviewRow(BaseModel):
     ending_balance: Decimal | None = None
     source_text_column: int | None = None
     source_amount_column: int | None = None
+    is_generated: bool = False
 
 
 class PreviewResponse(BaseModel):
